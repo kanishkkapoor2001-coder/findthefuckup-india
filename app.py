@@ -492,7 +492,7 @@ def view_shared_issue(share_id):
     <meta property="og:title" content="Contract Error Found">
     <meta property="og:description" content="{escape(row[1][:150])}...">
     <meta name="twitter:card" content="summary_large_image">
-    <title>Contract Error - Find The Fuckup</title>
+    <title>Contract Error - AI Contract Checker</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -610,7 +610,7 @@ def gallery():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gallery - Find The Fuckup</title>
+    <title>Gallery - AI Contract Checker</title>
     <style>
         * {
             margin: 0;
@@ -803,7 +803,7 @@ def gallery():
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">Find The Fuckup</div>
+            <div class="logo">Contract Error Gallery</div>
             <div class="tagline">
                 Hall of Shame: Real Contract Errors Found
             </div>
