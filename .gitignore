@@ -118,3 +118,4 @@ yarn-error.log
 # Local testing files
 test_uploads/
 uploads/
+.env

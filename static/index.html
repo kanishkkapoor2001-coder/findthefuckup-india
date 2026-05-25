@@ -3,577 +3,575 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Contract Checker - Find Errors in Legal Documents</title>
+    <title>Find the Fuckup · India — Contract error checker for Indian SaaS</title>
+    <meta name="description" content="Drop an Indian commercial contract, get the fuckups. DPDPA, FEMA, GST, stamp duty, Indian Contract Act and the usual drafting sins. Built by Sigil.">
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Google reCAPTCHA v3 - REPLACE WITH YOUR SITE KEY -->
+    <!-- Google reCAPTCHA v3 — REPLACE WITH YOUR SITE KEY -->
     <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY_HERE"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --canvas: #0A0A0A;
+            --surface: #111111;
+            --elevated: #161616;
+            --ink: #FAFAF7;
+            --ink-85: rgba(250,250,247,0.85);
+            --ink-70: rgba(250,250,247,0.70);
+            --ink-55: rgba(250,250,247,0.55);
+            --ink-40: rgba(250,250,247,0.40);
+            --ink-25: rgba(250,250,247,0.25);
+            --ink-12: rgba(250,250,247,0.12);
+            --ink-08: rgba(250,250,247,0.08);
+            --high: #f87171;
+            --medium: #fbbf24;
+            --low: #86efac;
         }
 
-        body {
-            font-family: 'Lora', Georgia, 'Times New Roman', serif;
-            background: linear-gradient(135deg, #0f1f3d 0%, #1a2f52 100%);
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            background: var(--canvas);
+            color: var(--ink);
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            min-height: 100vh;
+        }
+
+        .display { font-family: Georgia, "Times New Roman", serif; }
+
+        ::selection { background: rgba(250,250,247,0.15); color: var(--ink); }
+
+        a { color: inherit; text-decoration: none; }
+        a:hover { opacity: 0.7; }
+
+        /* ── Layout ───────────────────────────────────────────── */
+        .shell {
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px 20px 100px 20px;
-            position: relative;
-            color: white;
+            flex-direction: column;
         }
 
-        /* Global drag overlay */
-        .drag-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 31, 61, 0.95);
-            display: none;
+        .nav {
+            border-bottom: 1px solid var(--ink-08);
+            padding: 20px 28px;
+            display: flex;
             align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-mark {
+            color: var(--ink);
+            display: block;
+        }
+
+        .brand-name {
+            font-family: Georgia, serif;
+            font-size: 19px;
+            letter-spacing: -0.022em;
+            color: var(--ink);
+        }
+
+        .nav-meta {
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-size: 13px;
+            color: var(--ink-55);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
-            z-index: 9999;
+            padding: 60px 28px 80px;
+        }
+
+        .stage {
+            max-width: 720px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ── Hero ─────────────────────────────────────────────── */
+        .eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.28em;
+            text-transform: uppercase;
+            color: var(--ink-55);
+            margin-bottom: 28px;
+        }
+
+        h1.hero {
+            font-family: Georgia, serif;
+            font-size: clamp(48px, 8vw, 84px);
+            line-height: 0.96;
+            letter-spacing: -0.022em;
+            margin-bottom: 28px;
+        }
+
+        h1.hero .italic { font-style: italic; }
+
+        .lede {
+            font-family: Georgia, serif;
+            font-size: clamp(18px, 2.2vw, 22px);
+            line-height: 1.5;
+            color: var(--ink-85);
+            max-width: 56ch;
+            margin-bottom: 12px;
+        }
+
+        .sub-lede {
+            font-size: 15px;
+            line-height: 1.65;
+            color: var(--ink-70);
+            max-width: 60ch;
+            margin-bottom: 56px;
+        }
+
+        /* ── Drop zone ────────────────────────────────────────── */
+        .drop {
+            border: 1px dashed var(--ink-25);
+            padding: 64px 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.25s, background 0.25s;
+            background: transparent;
+        }
+
+        .drop:hover, .drop.over {
+            border-color: var(--ink-70);
+            background: rgba(250,250,247,0.02);
+        }
+
+        .drop.has-file {
+            border-color: var(--ink-70);
+            background: rgba(250,250,247,0.03);
+        }
+
+        .drop-title {
+            font-family: Georgia, serif;
+            font-size: 22px;
+            letter-spacing: -0.015em;
+            color: var(--ink);
+            margin-bottom: 8px;
+        }
+
+        .drop-sub {
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-size: 14px;
+            color: var(--ink-55);
+        }
+
+        .drop-tiny {
+            margin-top: 18px;
+            font-size: 11.5px;
+            color: var(--ink-40);
+            letter-spacing: 0.05em;
+        }
+
+        /* ── Drag overlay ─────────────────────────────────────── */
+        .drag-overlay {
+            position: fixed; inset: 0;
+            background: rgba(10,10,10,0.94);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 999;
             pointer-events: none;
         }
-
-        .drag-overlay.active {
-            display: flex;
-            animation: fadeIn 0.2s ease-in;
-        }
-
-        .drag-overlay-content {
-            text-align: center;
-            color: white;
-            animation: scaleIn 0.3s ease-out;
-        }
-
-        .drag-overlay-icon {
-            font-size: 120px;
-            margin-bottom: 20px;
-            animation: bounce 0.6s ease-in-out infinite;
-        }
-
+        .drag-overlay.active { display: flex; }
         .drag-overlay-text {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            font-family: 'Playfair Display', Georgia, serif;
+            font-family: Georgia, serif;
+            font-size: 36px;
+            letter-spacing: -0.022em;
+            color: var(--ink);
+        }
+        .drag-overlay-sub {
+            font-family: Georgia, serif;
+            font-style: italic;
+            color: var(--ink-55);
+            margin-top: 8px;
         }
 
-        .drag-overlay-subtext {
-            font-size: 18px;
-            opacity: 0.9;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes scaleIn {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        .container {
-            width: 100%;
-            max-width: 900px;
-        }
-
-        .card {
-            background: #1a3a5c;
-            border-radius: 8px;
-            padding: 40px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .logo {
-            font-size: 32px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 10px;
-            letter-spacing: -0.5px;
-            font-family: 'Playfair Display', Georgia, serif;
-        }
-
-        .tagline {
-            color: #d1d5db;
-            font-size: 16px;
-            font-weight: 400;
-        }
-
-        .upload-section {
-            margin-bottom: 30px;
-        }
-
-        .drop-zone {
-            border: 2px dashed #4a5d7a;
-            border-radius: 8px;
-            padding: 60px 40px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: rgba(255, 255, 255, 0.05);
-            position: relative;
-        }
-
-        .drop-zone:hover,
-        .drop-zone.drag-over {
-            border-color: #93b5d8;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .drop-zone.has-file {
-            border-color: #93b5d8;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .file-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .file-icon svg {
-            width: 64px;
-            height: 64px;
-            opacity: 0.8;
-            transition: all 0.3s;
-            animation: gentleBounce 2s ease-in-out infinite;
-        }
-
-        .drop-zone:hover .file-icon svg,
-        .drop-zone.has-file .file-icon svg {
-            opacity: 1;
-            animation: none;
-        }
-
-        @keyframes gentleBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .drop-zone-text {
-            font-size: 18px;
-            color: white;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .drop-zone-subtext {
+        /* ── Error banner ────────────────────────────────────── */
+        .error-banner {
+            border: 1px solid rgba(248,113,113,0.4);
+            background: rgba(248,113,113,0.08);
+            color: var(--ink);
+            padding: 14px 18px;
+            margin-bottom: 24px;
             font-size: 14px;
-            color: #d1d5db;
         }
 
-        .error-message {
-            background: #dc2626;
-            color: white;
-            padding: 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
+        /* ── Modal ────────────────────────────────────────────── */
         .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.75);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.78);
+            backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center;
             z-index: 1000;
-            padding: 20px;
-            animation: fadeIn 0.2s ease-in;
+            padding: 24px;
         }
-
         .modal {
-            background: #1a3a5c;
-            border-radius: 8px;
-            padding: 32px;
-            max-width: 500px;
+            background: var(--canvas);
+            border: 1px solid var(--ink-12);
+            max-width: 460px;
             width: 100%;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-            animation: scaleIn 0.3s ease-out;
+            padding: 40px 36px;
         }
-
-        .modal-header {
-            margin-bottom: 24px;
-            text-align: center;
+        .modal-eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.28em;
+            text-transform: uppercase;
+            color: var(--ink-55);
+            margin-bottom: 18px;
         }
-
-        .modal-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: white;
+        .modal h2 {
+            font-family: Georgia, serif;
+            font-size: 26px;
+            letter-spacing: -0.015em;
             margin-bottom: 8px;
-            font-family: 'Playfair Display', Georgia, serif;
         }
-
-        .modal-subtitle {
-            color: #d1d5db;
-            font-size: 14px;
+        .modal p {
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-size: 14.5px;
+            color: var(--ink-70);
+            margin-bottom: 28px;
+            line-height: 1.5;
         }
-
-        .form-group {
-            margin-bottom: 24px;
-        }
-
-        .form-group label {
+        .modal label {
             display: block;
-            margin-bottom: 8px;
-            color: white;
-            font-weight: 500;
-            font-size: 14px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.24em;
+            color: var(--ink-55);
+            margin-bottom: 10px;
         }
-
-        .form-group input {
+        .modal input[type=email] {
             width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #4a5d7a;
-            border-radius: 6px;
-            font-size: 16px;
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
-            transition: all 0.2s;
-        }
-
-        .form-group input:focus {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--ink-25);
+            padding: 8px 0 10px;
+            color: var(--ink);
+            font-family: Georgia, serif;
+            font-size: 17px;
             outline: none;
-            border-color: #93b5d8;
-            background: rgba(255, 255, 255, 0.1);
+            transition: border-color 0.2s;
         }
-
-        .form-group small {
+        .modal input[type=email]:focus { border-bottom-color: var(--ink); }
+        .modal input[type=email]::placeholder { color: var(--ink-40); }
+        .modal small {
             display: block;
-            margin-top: 6px;
-            color: #d1d5db;
+            margin-top: 10px;
             font-size: 12px;
+            color: var(--ink-40);
         }
-
         .modal-actions {
+            margin-top: 32px;
             display: flex;
-            gap: 12px;
+            gap: 16px;
+            align-items: center;
             justify-content: flex-end;
         }
-
-        .modal-button {
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-        }
-
-        .modal-button.secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-
-        .modal-button.secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .modal-button.primary {
-            background: #93b5d8;
-            color: #0f1f3d;
-        }
-
-        .modal-button.primary:hover {
-            background: #a8c5e0;
-        }
-
-        .modal-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 31, 61, 0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            animation: fadeIn 0.2s ease-in;
-        }
-
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #93b5d8;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            color: white;
-            font-size: 18px;
-            font-weight: 500;
-            text-align: center;
-            max-width: 400px;
-            padding: 0 20px;
-        }
-
-        .results-container {
-            animation: fadeIn 0.3s ease-in;
-        }
-
-        .results-header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .results-title {
-            font-size: 32px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 12px;
-            font-family: 'Playfair Display', Georgia, serif;
-        }
-
-        .results-subtitle {
-            color: #d1d5db;
-            font-size: 16px;
-        }
-
-        .results-content h3 {
-            font-size: 22px;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 20px;
-            font-family: 'Playfair Display', Georgia, serif;
-        }
-
-        .issues-list {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 40px;
-        }
-
-        .issue-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-left: 4px solid #93b5d8;
-            border-radius: 6px;
-            padding: 20px;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .issue-card:hover {
-            background: rgba(255, 255, 255, 0.1);
-            transform: translateX(4px);
-        }
-
-        .issue-card.high {
-            border-left-color: #dc2626;
-        }
-
-        .issue-card.medium {
-            border-left-color: #f59e0b;
-        }
-
-        .issue-card.low {
-            border-left-color: #10b981;
-        }
-
-        .issue-location {
-            color: #93b5d8;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .issue-description {
-            color: white;
-            font-size: 16px;
-            margin-bottom: 12px;
-            line-height: 1.5;
-        }
-
-        .issue-suggestion {
-            color: #d1d5db;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .share-button {
-            margin-top: 12px;
-            padding: 8px 16px;
-            background: #1da1f2;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .share-button:hover {
-            background: #1a8cd8;
-        }
-
-        .document-preview {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 6px;
-            padding: 24px;
-            max-height: 400px;
-            overflow-y: auto;
-            margin-bottom: 30px;
-        }
-
-        .paragraph {
-            color: #d1d5db;
-            margin-bottom: 16px;
-            padding: 12px;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-
-        .paragraph:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .paragraph strong {
-            color: #93b5d8;
-            margin-right: 8px;
-        }
-
         .button {
-            width: 100%;
-            padding: 14px;
-            background: #93b5d8;
-            color: #0f1f3d;
+            background: var(--ink);
+            color: var(--canvas);
             border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .button:hover {
-            background: #a8c5e0;
-        }
-
-        .back-button {
-            margin-top: 20px;
-        }
-
-        .powered-by-footer {
-            text-align: center;
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .powered-by-footer a {
-            color: #93b5d8;
-            text-decoration: none;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .powered-by-footer a:hover {
-            color: #a8c5e0;
-        }
-
-        .footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            text-align: center;
-            padding: 20px;
-            font-size: 12px;
-            color: #9ca3af;
-            background: rgba(15, 31, 61, 0.95);
-        }
-
-        .footer a {
-            color: #93b5d8;
-            text-decoration: none;
-            margin-bottom: 8px;
-            display: inline-block;
-        }
-
-        .footer a:hover {
-            color: #a8c5e0;
-        }
-
-        .gallery-link {
-            font-size: 14px;
+            padding: 13px 26px;
+            font-family: -apple-system, system-ui, sans-serif;
             font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .button:hover { background: #EDEDE7; }
+        .button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .button.ghost {
+            background: transparent;
+            color: var(--ink-70);
+            padding: 13px 18px;
+        }
+        .button.ghost:hover { color: var(--ink); background: transparent; }
+
+        /* ── Loading ──────────────────────────────────────────── */
+        .loading {
+            position: fixed; inset: 0;
+            background: var(--canvas);
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column;
+            gap: 32px;
+            z-index: 100;
+        }
+        .loading-spinner {
+            width: 36px; height: 36px;
+            border: 1px solid var(--ink-25);
+            border-top-color: var(--ink);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text {
+            font-family: Georgia, serif;
+            font-style: italic;
+            color: var(--ink-70);
+            font-size: 18px;
+            text-align: center;
+        }
+        .loading-sub {
+            font-size: 12.5px;
+            color: var(--ink-40);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
 
-        @media (max-width: 768px) {
-            .card {
-                padding: 24px;
-            }
+        /* ── Results ──────────────────────────────────────────── */
+        .results-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .results-header {
+            border-bottom: 1px solid var(--ink-08);
+            padding-bottom: 32px;
+            margin-bottom: 40px;
+        }
+        .results-count {
+            font-family: Georgia, serif;
+            font-size: clamp(36px, 6vw, 56px);
+            letter-spacing: -0.022em;
+            line-height: 1;
+            margin-bottom: 18px;
+        }
+        .results-count .num { font-style: italic; }
+        .results-summary {
+            font-family: Georgia, serif;
+            font-size: 17px;
+            line-height: 1.55;
+            color: var(--ink-85);
+            max-width: 62ch;
+        }
+        .severity-tally {
+            display: flex;
+            gap: 28px;
+            margin-top: 24px;
+            font-size: 13px;
+            color: var(--ink-55);
+        }
+        .severity-tally .dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            margin-right: 7px;
+            vertical-align: middle;
+        }
+        .severity-tally .dot.high   { background: var(--high); }
+        .severity-tally .dot.medium { background: var(--medium); }
+        .severity-tally .dot.low    { background: var(--low); }
 
-            .logo {
-                font-size: 28px;
-            }
+        .issues {
+            display: flex;
+            flex-direction: column;
+        }
+        .issue {
+            border-top: 1px solid var(--ink-08);
+            padding: 28px 0;
+        }
+        .issue:last-child { border-bottom: 1px solid var(--ink-08); }
+        .issue-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            font-size: 11.5px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--ink-55);
+        }
+        .issue-sev {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .issue-sev .dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+        }
+        .issue-sev.high .dot   { background: var(--high); }
+        .issue-sev.medium .dot { background: var(--medium); }
+        .issue-sev.low .dot    { background: var(--low); }
+        .issue-sev.high   { color: var(--high); }
+        .issue-sev.medium { color: var(--medium); }
+        .issue-sev.low    { color: var(--low); }
 
-            .tagline {
-                font-size: 14px;
-            }
+        .issue-category {
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-size: 12px;
+            color: var(--ink-55);
+            text-transform: none;
+            letter-spacing: 0;
+            padding: 2px 9px;
+            border: 1px solid var(--ink-12);
+            border-radius: 999px;
+        }
 
-            .drop-zone {
-                padding: 40px 24px;
-            }
+        .issue-where {
+            color: var(--ink-40);
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: var(--ink-25);
+            text-underline-offset: 4px;
+        }
+        .issue-where:hover { color: var(--ink-70); }
 
-            .modal {
-                padding: 24px;
-            }
+        .issue-text {
+            font-family: Georgia, serif;
+            font-size: 18px;
+            line-height: 1.5;
+            color: var(--ink);
+            margin-bottom: 16px;
+            letter-spacing: -0.005em;
+        }
+        .issue-fix {
+            font-size: 14.5px;
+            line-height: 1.65;
+            color: var(--ink-70);
+            padding-left: 18px;
+            border-left: 2px solid var(--ink-12);
+        }
+        .issue-fix-label {
+            font-family: Georgia, serif;
+            font-style: italic;
+            color: var(--ink-55);
+            margin-right: 6px;
+        }
 
-            .modal-title {
-                font-size: 20px;
-            }
+        .contract-section {
+            margin-top: 72px;
+            padding-top: 48px;
+            border-top: 1px solid var(--ink-08);
+        }
+        .contract-eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.28em;
+            text-transform: uppercase;
+            color: var(--ink-55);
+            margin-bottom: 24px;
+        }
+        .paragraph {
+            padding: 12px 16px;
+            margin-bottom: 6px;
+            font-family: Georgia, serif;
+            font-size: 14.5px;
+            line-height: 1.65;
+            color: var(--ink-70);
+            transition: background 1.5s;
+        }
+        .paragraph .pnum {
+            color: var(--ink-40);
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            margin-right: 10px;
+        }
+        .paragraph.flash { background: rgba(250,250,247,0.08); }
 
-            .results-title {
-                font-size: 24px;
-            }
+        .results-actions {
+            margin-top: 56px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        /* Sigil cross-promo block on results page */
+        .sigil-cta {
+            margin-top: 64px;
+            padding: 36px 32px;
+            border: 1px solid var(--ink-12);
+            background: rgba(250,250,247,0.02);
+        }
+        .sigil-cta-eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.28em;
+            text-transform: uppercase;
+            color: var(--ink-55);
+            margin-bottom: 14px;
+        }
+        .sigil-cta-headline {
+            font-family: Georgia, serif;
+            font-size: 26px;
+            line-height: 1.2;
+            letter-spacing: -0.015em;
+            margin-bottom: 12px;
+            max-width: 30ch;
+        }
+        .sigil-cta-headline .italic { font-style: italic; }
+        .sigil-cta-body {
+            font-size: 14.5px;
+            line-height: 1.65;
+            color: var(--ink-70);
+            max-width: 60ch;
+            margin-bottom: 22px;
+        }
+        .sigil-cta-link {
+            font-family: Georgia, serif;
+            font-size: 15px;
+            color: var(--ink);
+            text-decoration: underline;
+            text-underline-offset: 6px;
+            text-decoration-color: var(--ink-40);
+        }
+        .sigil-cta-link:hover { text-decoration-color: var(--ink); opacity: 1; }
+
+        /* Subtle fade-in on results */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .results-wrap > * { animation: fadeUp 0.5s ease-out both; }
+        .results-wrap > *:nth-child(2) { animation-delay: 0.08s; }
+        .results-wrap > *:nth-child(3) { animation-delay: 0.16s; }
+        .results-wrap > *:nth-child(4) { animation-delay: 0.24s; }
+
+        /* ── Footer ───────────────────────────────────────────── */
+        footer {
+            border-top: 1px solid var(--ink-08);
+            padding: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12.5px;
+            color: var(--ink-40);
+        }
+        footer .right { text-align: right; }
+        footer a { color: var(--ink-70); }
+        footer a:hover { color: var(--ink); }
+
+        /* ── Responsive ───────────────────────────────────────── */
+        @media (max-width: 640px) {
+            main { padding: 36px 20px 60px; }
+            .nav, footer { padding: 16px 20px; }
+            .nav-meta { display: none; }
+            .drop { padding: 48px 20px; }
+            .modal { padding: 32px 24px; }
+            .severity-tally { flex-wrap: wrap; gap: 16px; }
+            .issue-meta { flex-wrap: wrap; }
+            .results-actions { flex-direction: column; align-items: stretch; }
+            .results-actions .button { width: 100%; }
+            footer { flex-direction: column; gap: 8px; text-align: center; }
+            footer .right { text-align: center; }
         }
     </style>
 </head>
@@ -581,6 +579,20 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        function SigilMark() {
+            return (
+                <svg className="brand-mark" width="32" height="12" viewBox="0 0 36 14" fill="none" aria-hidden>
+                    <path
+                        d="M 2 11 C 7 1, 13 12, 18 7 C 23 2, 29 5, 34 9"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        fill="none"
+                    />
+                </svg>
+            );
+        }
+
         function App() {
             const [file, setFile] = React.useState(null);
             const [email, setEmail] = React.useState('');
@@ -590,386 +602,326 @@
             const [showModal, setShowModal] = React.useState(false);
             const [dragOver, setDragOver] = React.useState(false);
             const [globalDrag, setGlobalDrag] = React.useState(false);
-
             const fileInputRef = React.useRef(null);
 
-            // Global drag and drop handlers
+            // Global drag handlers
             React.useEffect(() => {
-                let dragCounter = 0;
-
-                const handleWindowDragEnter = (e) => {
+                let dc = 0;
+                const dEnter = (e) => { e.preventDefault(); dc++; setGlobalDrag(true); };
+                const dLeave = (e) => { e.preventDefault(); dc--; if (dc === 0) setGlobalDrag(false); };
+                const dOver  = (e) => e.preventDefault();
+                const dDrop  = (e) => {
                     e.preventDefault();
-                    dragCounter++;
-                    setGlobalDrag(true);
+                    dc = 0; setGlobalDrag(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleFileSelect(f);
                 };
-
-                const handleWindowDragLeave = (e) => {
-                    e.preventDefault();
-                    dragCounter--;
-                    if (dragCounter === 0) {
-                        setGlobalDrag(false);
-                    }
-                };
-
-                const handleWindowDragOver = (e) => {
-                    e.preventDefault();
-                };
-
-                const handleWindowDrop = (e) => {
-                    e.preventDefault();
-                    dragCounter = 0;
-                    setGlobalDrag(false);
-
-                    const droppedFile = e.dataTransfer.files[0];
-                    if (droppedFile) {
-                        handleFileSelect(droppedFile);
-                    }
-                };
-
-                window.addEventListener('dragenter', handleWindowDragEnter);
-                window.addEventListener('dragleave', handleWindowDragLeave);
-                window.addEventListener('dragover', handleWindowDragOver);
-                window.addEventListener('drop', handleWindowDrop);
-
+                window.addEventListener('dragenter', dEnter);
+                window.addEventListener('dragleave', dLeave);
+                window.addEventListener('dragover',  dOver);
+                window.addEventListener('drop',      dDrop);
                 return () => {
-                    window.removeEventListener('dragenter', handleWindowDragEnter);
-                    window.removeEventListener('dragleave', handleWindowDragLeave);
-                    window.removeEventListener('dragover', handleWindowDragOver);
-                    window.removeEventListener('drop', handleWindowDrop);
+                    window.removeEventListener('dragenter', dEnter);
+                    window.removeEventListener('dragleave', dLeave);
+                    window.removeEventListener('dragover',  dOver);
+                    window.removeEventListener('drop',      dDrop);
                 };
             }, []);
 
-            const handleFileSelect = (selectedFile) => {
-                if (!selectedFile) return;
-
-                if (!selectedFile.name.endsWith('.docx')) {
-                    setError('Please upload a .docx file');
+            const handleFileSelect = (f) => {
+                if (!f) return;
+                if (!f.name.toLowerCase().endsWith('.docx')) {
+                    setError('Only .docx files. Convert your PDF first.');
                     return;
                 }
-
-                if (selectedFile.size > 10 * 1024 * 1024) {
-                    setError('File too large (max 10MB)');
+                if (f.size > 10 * 1024 * 1024) {
+                    setError('File too large (max 10MB).');
                     return;
                 }
-
-                setFile(selectedFile);
+                setFile(f);
                 setError('');
                 setShowModal(true);
             };
 
-            const handleDrop = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragOver(false);
-                setGlobalDrag(false);
-
-                const droppedFile = e.dataTransfer.files[0];
-                if (droppedFile) {
-                    handleFileSelect(droppedFile);
-                }
-            };
-
-            const handleDragOver = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragOver(true);
-            };
-
-            const handleDragLeave = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragOver(false);
-            };
-
             const handleSubmit = async () => {
                 if (!email || !file) return;
-
                 setError('');
                 setShowModal(false);
                 setLoading(true);
-
                 try {
-                    // Get reCAPTCHA token
-                    const recaptchaToken = await window.grecaptcha.execute('YOUR_RECAPTCHA_SITE_KEY_HERE', {action: 'submit'});
-
-                    const formData = new FormData();
-                    formData.append('document', file);
-                    formData.append('email', email);
-                    formData.append('recaptcha_token', recaptchaToken);
-
-                    const response = await fetch('/api/check-document', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to analyze document');
+                    let token = 'no-recaptcha';
+                    if (typeof window.grecaptcha !== 'undefined' && window.grecaptcha.execute) {
+                        try {
+                            token = await window.grecaptcha.execute('YOUR_RECAPTCHA_SITE_KEY_HERE', { action: 'submit' });
+                        } catch (_) { /* fall back to no-recaptcha token */ }
                     }
-
+                    const fd = new FormData();
+                    fd.append('document', file);
+                    fd.append('email', email);
+                    fd.append('recaptcha_token', token);
+                    const res = await fetch('/api/check-document', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to analyse document');
                     setResults(data);
                 } catch (err) {
-                    setError(err.message || 'An error occurred. Please try again.');
+                    setError(err.message || 'Something went wrong.');
                     setFile(null);
-                    setEmail('');
                 } finally {
                     setLoading(false);
                 }
             };
 
-            const resetForm = () => {
+            const reset = () => {
                 setFile(null);
                 setEmail('');
                 setError('');
                 setResults(null);
             };
 
-            const scrollToParagraph = (index) => {
-                const element = document.getElementById(`para-${index}`);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    element.style.background = 'rgba(147, 181, 216, 0.2)';
-                    setTimeout(() => {
-                        element.style.background = '';
-                    }, 2000);
-                }
+            const scrollToParagraph = (idx) => {
+                const el = document.getElementById(`para-${idx}`);
+                if (!el) return;
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('flash');
+                setTimeout(() => el.classList.remove('flash'), 1800);
             };
 
-            const shareIssueToTwitter = (issue, idx) => {
-                const text = `Found a contract error! 🚨
-
-Issue: ${issue.issue}
-
-💡 Suggestion: ${issue.suggestion}
-
-Check your contracts with AI Contract Checker`;
-
-                const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
-                window.open(url, '_blank', 'width=550,height=420');
-            };
-
+            // ── Loading state ──────────────────────────────────
             if (loading) {
                 return (
-                    <div className="loading-overlay">
+                    <div className="loading">
                         <div className="loading-spinner"></div>
-                        <div className="loading-text">
-                            Analyzing your contract for errors...
+                        <div>
+                            <div className="loading-text">Reading every line.</div>
                         </div>
+                        <div className="loading-sub">~25 seconds</div>
                     </div>
                 );
             }
 
+            // ── Results screen ─────────────────────────────────
             if (results) {
+                const issues = results.issues || [];
+                const counts = { high: 0, medium: 0, low: 0 };
+                issues.forEach(i => { if (counts[i.severity] !== undefined) counts[i.severity]++; });
+
                 return (
-                    <>
-                    <div className="container">
-                        <div className="card">
-                            <div className="results-container">
+                    <div className="shell">
+                        <header className="nav">
+                            <a className="brand" href="/">
+                                <SigilMark />
+                                <span className="brand-name">Find the Fuckup · India</span>
+                            </a>
+                            <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
+                        </header>
+
+                        <main>
+                            <div className="results-wrap">
                                 <div className="results-header">
-                                    <div className="results-title">
-                                        {results.summary}
+                                    <div className="eyebrow">Findings</div>
+                                    <div className="results-count">
+                                        <span className="num">{issues.length}</span>{' '}
+                                        {issues.length === 1 ? 'fuckup' : 'fuckups'} found
                                     </div>
-                                    <div className="results-subtitle">
-                                        Found {results.issues?.length || 0} potential issues in your contract
-                                    </div>
+                                    {results.summary && (
+                                        <div className="results-summary">{results.summary}</div>
+                                    )}
+                                    {issues.length > 0 && (
+                                        <div className="severity-tally">
+                                            <span><span className="dot high"></span>{counts.high} high</span>
+                                            <span><span className="dot medium"></span>{counts.medium} medium</span>
+                                            <span><span className="dot low"></span>{counts.low} low</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {results.issues && results.issues.length > 0 && (
-                                    <div className="results-content">
-                                        <h3>Issues Found</h3>
-                                        <div className="issues-list">
-                                            {results.issues.map((issue, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className={`issue-card ${issue.severity}`}
-                                                >
-                                                    <div onClick={() => scrollToParagraph(issue.paragraphIndex)} style={{cursor: 'pointer'}}>
-                                                        <div className="issue-location">
-                                                            📍 Paragraph {issue.paragraphIndex}
-                                                        </div>
-                                                        <div className="issue-description">
-                                                            <strong>Issue:</strong> {issue.issue}
-                                                        </div>
-                                                        <div className="issue-suggestion">
-                                                            💡 Suggestion: {issue.suggestion}
-                                                        </div>
+                                {issues.length > 0 ? (
+                                    <div className="issues">
+                                        {issues.map((iss, i) => (
+                                            <div key={i} className="issue">
+                                                <div className="issue-meta">
+                                                    <span className={`issue-sev ${iss.severity}`}>
+                                                        <span className="dot"></span>
+                                                        {iss.severity}
+                                                    </span>
+                                                    {iss.category && (
+                                                        <span className="issue-category">
+                                                            {iss.category.replace(/_/g, ' ').toLowerCase()}
+                                                        </span>
+                                                    )}
+                                                    {typeof iss.paragraphIndex === 'number' && (
+                                                        <span
+                                                            className="issue-where"
+                                                            onClick={() => scrollToParagraph(iss.paragraphIndex)}
+                                                        >
+                                                            paragraph {iss.paragraphIndex}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="issue-text">{iss.issue}</div>
+                                                {iss.suggestion && (
+                                                    <div className="issue-fix">
+                                                        <span className="issue-fix-label">Fix —</span>
+                                                        {iss.suggestion}
                                                     </div>
-                                                    <button
-                                                        className="share-button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            shareIssueToTwitter(issue, idx);
-                                                        }}
-                                                    >
-                                                        🐦 Share to Twitter
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <h3>Document Preview</h3>
-                                        <div className="document-preview">
-                                            {results.paragraphs?.map((para) => (
-                                                <div
-                                                    key={para.index}
-                                                    id={`para-${para.index}`}
-                                                    className="paragraph"
-                                                >
-                                                    <strong>[Para {para.index}]:</strong> {para.text}
-                                                </div>
-                                            ))}
-                                        </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="issue-text" style={{paddingTop: 16}}>
+                                        Nothing serious surfaced. Doesn't mean nothing is there — a Bar Council-enrolled advocate would still catch what the model can't.
                                     </div>
                                 )}
 
-                                <button onClick={resetForm} className="button back-button">
-                                    Check Another Contract
-                                </button>
-                            </div>
-                        </div>
+                                {results.paragraphs && results.paragraphs.length > 0 && (
+                                    <div className="contract-section">
+                                        <div className="contract-eyebrow">The contract you uploaded</div>
+                                        {results.paragraphs.map((p) => (
+                                            <div key={p.index} id={`para-${p.index}`} className="paragraph">
+                                                <span className="pnum">¶{p.index}</span>
+                                                {p.text}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
-                        <div className="footer">
-                            © 2026 - All Rights Reserved | This tool is not legal advice and does not create an attorney-client relationship. We don't save your contract.
-                        </div>
+                                <div className="sigil-cta">
+                                    <div className="sigil-cta-eyebrow">If you want this signed off</div>
+                                    <div className="sigil-cta-headline">
+                                        An AI can spot the issues. <span className="italic">An advocate has to sign their name to it.</span>
+                                    </div>
+                                    <div className="sigil-cta-body">
+                                        Sigil is a bench of Bar Council-enrolled advocates and AI engineers. Same analytical work, same speed — but a real advocate reads it, edits where the model got it wrong, and stamps name and enrolment number on the deliverable.
+                                    </div>
+                                    <a
+                                        className="sigil-cta-link"
+                                        href="https://sigil91.com/?utm_source=findthefuckup&utm_medium=results-cta&utm_campaign=tool-handoff"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        See how the desk works →
+                                    </a>
+                                </div>
+
+                                <div className="results-actions">
+                                    <button className="button" onClick={reset}>Check another contract</button>
+                                </div>
+                            </div>
+                        </main>
+
+                        <footer>
+                            <span>© 2026 Sigil · Not legal advice. Your contract is not saved.</span>
+                            <span className="right">
+                                <a href="https://sigil91.com/?utm_source=findthefuckup&utm_medium=footer" target="_blank" rel="noopener noreferrer">sigil91.com</a>
+                            </span>
+                        </footer>
                     </div>
-                    </>
                 );
             }
 
+            // ── Default landing ─────────────────────────────────
             return (
-                <>
-                    {/* Global drag overlay */}
+                <div className="shell">
                     <div className={`drag-overlay ${globalDrag ? 'active' : ''}`}>
-                        <div className="drag-overlay-content">
-                            <div className="drag-overlay-icon">📄</div>
-                            <div className="drag-overlay-text">Drop your contract</div>
-                            <div className="drag-overlay-subtext">Release to upload</div>
+                        <div style={{textAlign:'center'}}>
+                            <div className="drag-overlay-text">Drop the contract.</div>
+                            <div className="drag-overlay-sub">Release to upload</div>
                         </div>
                     </div>
 
-                    <div className="container">
-                        <div className="card">
-                            <div className="header">
-                                <div className="logo">AI Contract Checker</div>
-                                <div className="tagline">
-                                    AI-powered contract analysis to find errors and inconsistencies
+                    <header className="nav">
+                        <a className="brand" href="/">
+                            <SigilMark />
+                            <span className="brand-name">Find the Fuckup · India</span>
+                        </a>
+                        <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
+                    </header>
+
+                    <main>
+                        <div className="stage">
+                            <div className="eyebrow">For Indian commercial contracts</div>
+
+                            <h1 className="hero">
+                                Your expensive lawyers <span className="italic">are worse</span> than you think.
+                            </h1>
+
+                            <p className="lede">
+                                Drop a contract. Get the fuckups — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, and the usual drafting sins.
+                            </p>
+
+                            <p className="sub-lede">
+                                No login. No save. The file leaves your browser, the AI reads every line, you get a report in about 25 seconds. Want a Bar Council-enrolled advocate to actually sign off on it — <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer" style={{textDecoration:'underline', textUnderlineOffset:'4px', textDecorationColor:'var(--ink-40)'}}>Sigil</a> does that.
+                            </p>
+
+                            {error && <div className="error-banner">{error}</div>}
+
+                            <div
+                                className={`drop ${file ? 'has-file' : ''} ${dragOver ? 'over' : ''}`}
+                                onClick={() => fileInputRef.current?.click()}
+                                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); setGlobalDrag(false); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }}
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+                            >
+                                <div className="drop-title">
+                                    {file ? file.name : 'Drop a contract'}
                                 </div>
+                                <div className="drop-sub">
+                                    {file ? 'Click to change file' : 'or click to choose'}
+                                </div>
+                                <div className="drop-tiny">.DOCX · 10 MB MAX</div>
                             </div>
 
-                            {error && (
-                                <div className="error-message">
-                                    ⚠️ {error}
-                                </div>
-                            )}
-
-                            <div className="upload-section">
-                                <div
-                                    className={`drop-zone ${file ? 'has-file' : ''} ${dragOver ? 'drag-over' : ''}`}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    onDrop={handleDrop}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                >
-                                    <div className="file-icon">
-                                        {file ? (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                <polyline points="14 2 14 8 20 8"></polyline>
-                                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                                                <polyline points="10 9 9 9 8 9"></polyline>
-                                            </svg>
-                                        ) : (
-                                            <div style={{fontSize: '64px', animation: 'gentleBounce 2s ease-in-out infinite'}}>📄</div>
-                                        )}
-                                    </div>
-                                    <div className="drop-zone-text">
-                                        {file ? file.name : 'Drop your contract anywhere'}
-                                    </div>
-                                    <div className="drop-zone-subtext">
-                                        {file ? 'Click to change file' : 'or click to browse (.docx files only)'}
-                                    </div>
-                                </div>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".docx"
-                                    onChange={(e) => handleFileSelect(e.target.files[0])}
-                                    style={{display: 'none'}}
-                                />
-                            </div>
-
-                            <div className="powered-by-footer">
-                                <a href="https://github.com/yourusername/contract-checker" target="_blank" rel="noopener noreferrer">
-                                    Open Source Project
-                                </a>
-                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".docx"
+                                onChange={(e) => handleFileSelect(e.target.files[0])}
+                                style={{display: 'none'}}
+                            />
                         </div>
-                    </div>
+                    </main>
 
                     {showModal && (
                         <div className="modal-overlay" onClick={() => setShowModal(false)}>
                             <div className="modal" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <div className="modal-title">Enter Your Company Email</div>
-                                    <div className="modal-subtitle">
-                                        We'll analyze your contract for errors and inconsistencies
-                                    </div>
-                                </div>
+                                <div className="modal-eyebrow">One more thing</div>
+                                <h2>Your work email</h2>
+                                <p>We'll show you the fuckups in your contract. No newsletter, no sales drip.</p>
 
-                                <div className="form-group">
-                                    <label htmlFor="email">Company Email Address</label>
-                                    <input
-                                        type="email"
-                                        id="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="you@company.com"
-                                        autoFocus
-                                        onKeyPress={(e) => {
-                                            if (e.key === 'Enter' && email) {
-                                                handleSubmit();
-                                            }
-                                        }}
-                                    />
-                                    <small>
-                                        No Gmail or other personal email addresses
-                                    </small>
-                                </div>
+                                <label htmlFor="email">Work email</label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="you@company.com"
+                                    autoFocus
+                                    onKeyPress={(e) => { if (e.key === 'Enter' && email) handleSubmit(); }}
+                                />
+                                <small>No Gmail / Yahoo / Outlook personal addresses.</small>
 
                                 <div className="modal-actions">
-                                    <button
-                                        className="modal-button secondary"
-                                        onClick={() => {
-                                            setShowModal(false);
-                                            setFile(null);
-                                        }}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        className="modal-button primary"
-                                        onClick={handleSubmit}
-                                        disabled={!email}
-                                    >
-                                        Analyze Contract
+                                    <button className="button ghost" onClick={() => setShowModal(false)}>Cancel</button>
+                                    <button className="button" onClick={handleSubmit} disabled={!email}>
+                                        Find the fuckups →
                                     </button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="footer">
-                        <a href="/gallery" className="gallery-link">📸 View Gallery</a>
-                        <br />
-                        © 2026 - All Rights Reserved | This tool is not legal advice and does not create an attorney-client relationship. We don't save your contract.
-                    </div>
-                </>
+                    <footer>
+                        <span>© 2026 Sigil · Not legal advice. Your contract is not saved.</span>
+                        <span className="right">
+                            <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">sigil91.com</a>
+                        </span>
+                    </footer>
+                </div>
             );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>

@@ -1,339 +1,81 @@
-# Find The Fuckup - Contract Error Checker
+# Find the Fuckup · India
 
-An AI-powered contract analysis tool that uses Claude (Anthropic's AI) to identify potential errors, inconsistencies, and problems in legal contracts.
+**Drop a contract, get the fuckups.** AI-powered contract analyser tuned for Indian commercial paper — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, plus the usual drafting sins.
 
-## Features
+Built by [Sigil](https://sigil91.com).
 
-- 📄 **Document Analysis**: Upload .docx contracts for AI-powered review
-- 🔍 **Error Detection**: Identifies contradictions, ambiguities, missing definitions, and more
-- 🎯 **Severity Ratings**: Issues are classified as high, medium, or low severity
-- 🔗 **Share Issues**: Create shareable links for specific contract errors
-- 📸 **Public Gallery**: Browse real contract errors found by the community
-- 🤖 **Powered by Claude**: Uses Anthropic's Claude Sonnet 4 for analysis
-- 🔒 **Security**: reCAPTCHA v3 protection, rate limiting, and corporate email validation
+## Indian-law issues the analyser is tuned to catch
 
-## Tech Stack
+- **DPDPA 2023 gaps** — missing consent flows, no 72-hour breach notification, no data principal rights, cross-border transfer issues
+- **Indian Contract Act 1872** — failure for want of consideration, Section 27 restraint-of-trade, Section 74 penalty vs liquidated damages
+- **FEMA implications** — USD payment terms, intercompany agreements that look like undisclosed ECB
+- **GST** — wrong place-of-supply language, missing GST inclusive/exclusive clarity, no tax invoice obligation
+- **Stamp Duty** — unstamped contracts, multi-state execution issues, missing e-stamp acknowledgment
+- **IT Act 2000** — electronic signature clauses without Section 5 / 3A reference
+- **Arbitration & Conciliation Act** — seat vs venue (BALCO), unclear governing law
+- **Companies Act 2013** — Section 188 RPTs, Section 197 director indemnity
+- **Limitation Act 1963** — Section 28 issues with contractually shortened limitation
+- **Cross-border** — foreign-law MSAs signed by Indian entities without local-law carve-outs
 
-- **Backend**: Flask (Python)
-- **Frontend**: React (via CDN)
-- **AI**: Anthropic Claude API
-- **Database**: PostgreSQL
-- **Deployment**: Render/Heroku compatible (uses gunicorn)
+## Tech stack
 
-## Prerequisites
+Flask + React (CDN) + **Gemini 2.5 Flash** (swapped from upstream's Claude Sonnet — Gemini's free tier is more forgiving for an MVP) + PostgreSQL + gunicorn.
 
-- Python 3.8+
-- PostgreSQL database (optional, for email tracking and gallery features)
-- Anthropic API key
-- Google reCAPTCHA v3 site key and secret key
+Swap models any time via the `GEMINI_MODEL` env var: `gemini-2.5-flash` (default, free tier), `gemini-2.5-pro` (better quality, paid), `gemini-2.5-flash-lite` (fastest).
 
-## Installation
-
-### 1. Clone the Repository
+## Run locally
 
 ```bash
-git clone https://github.com/yourusername/contract-checker.git
-cd contract-checker
-```
-
-### 2. Install Dependencies
-
-```bash
+# 1. Install
 pip install -r requirements.txt
-```
 
-### 3. Set Up Environment Variables
+# 2. Set env vars (see .env.example)
+export GEMINI_API_KEY=AIza...
+export RECAPTCHA_SECRET_KEY=...
+export DATABASE_URL=postgresql://user:password@localhost:5432/findthefuckup
 
-Create a `.env` file in the root directory:
-
-```bash
-# Required
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-RECAPTCHA_SECRET_KEY=your_recaptcha_secret_key_here
-
-# Optional (for database features)
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-```
-
-### 4. Configure reCAPTCHA
-
-1. Go to [Google reCAPTCHA Admin](https://www.google.com/recaptcha/admin)
-2. Register a new site with reCAPTCHA v3
-3. Add your domain(s) to the allowed domains
-4. Copy your site key and secret key
-5. Update `index.html` line 12 with your site key:
-   ```html
-   <script src="https://www.google.com/recaptcha/api.js?render=YOUR_SITE_KEY_HERE"></script>
-   ```
-6. Update `index.html` line 663 with your site key:
-   ```javascript
-   const recaptchaToken = await window.grecaptcha.execute('YOUR_SITE_KEY_HERE', {action: 'submit'});
-   ```
-7. Add your secret key to environment variables
-
-### 5. Set Up Database (Optional)
-
-If you want email tracking and gallery features:
-
-```bash
-# Connect to PostgreSQL
-psql -U your_username -d your_database
-
-# Tables will be created automatically on first run
-# Or you can run the initialization manually by starting the app
-```
-
-### 6. Update CORS Origins
-
-In `app.py`, update the CORS configuration with your actual domain:
-
-```python
-CORS(app, origins=[
-    "https://yourdomain.com",
-    "https://www.yourdomain.com",
-    "http://localhost:3000",
-    "http://localhost:5000"
-])
-```
-
-## Running Locally
-
-### Development Mode
-
-```bash
+# 3. Run
 python app.py
-```
-
-The app will run on `http://localhost:5000`
-
-### Production Mode (with gunicorn)
-
-```bash
+# OR for production
 gunicorn app:app
 ```
 
-## Deployment
+The app runs on `http://localhost:5000`.
 
-### Deploy to Render
+## Required secrets
 
-1. Create a new Web Service on [Render](https://render.com)
-2. Connect your GitHub repository
-3. Configure environment variables:
-   - `ANTHROPIC_API_KEY`
-   - `RECAPTCHA_SECRET_KEY`
-   - `DATABASE_URL` (Render can auto-provision PostgreSQL)
-4. Deploy!
+| Variable | Why | Where to get it |
+|---|---|---|
+| `GEMINI_API_KEY` | Powers the analysis | aistudio.google.com/app/apikey (sign in with Google, free) |
+| `RECAPTCHA_SECRET_KEY` | Bot protection | google.com/recaptcha/admin (v3) |
+| `GEMINI_MODEL` | Optional — model selector | Default: `gemini-2.5-flash` |
+| `DATABASE_URL` | Optional — email tracking + shareable error gallery | Postgres anywhere (Render auto-provisions, or local) |
 
-### Deploy to Heroku
+Also update the reCAPTCHA **site key** in `static/index.html` (currently uses the upstream key — will not work for new domains).
 
-1. Install the [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
-2. Create a new Heroku app:
-   ```bash
-   heroku create your-app-name
-   ```
-3. Add PostgreSQL addon:
-   ```bash
-   heroku addons:create heroku-postgresql:mini
-   ```
-4. Set environment variables:
-   ```bash
-   heroku config:set ANTHROPIC_API_KEY=your_key_here
-   heroku config:set RECAPTCHA_SECRET_KEY=your_key_here
-   ```
-5. Deploy:
-   ```bash
-   git push heroku main
-   ```
+## Deploy
 
-## Project Structure
+### Render (one-click)
+1. New Web Service → connect this repo
+2. Add the 3 env vars
+3. Add a free Postgres instance (Render auto-fills `DATABASE_URL`)
+4. Done — point your domain at the Render service
 
-```
-.
-├── app.py              # Flask backend application
-├── index.html          # React frontend (single page)
-├── requirements.txt    # Python dependencies
-├── Procfile           # Deployment configuration
-└── README.md          # This file
-```
+### Vercel + Railway / Fly.io
+This is a Python/Flask app, so Vercel is awkward. Cleaner: deploy backend to Railway/Fly, point static at Vercel, OR just put everything on Render.
 
-## API Endpoints
+## Customisation knobs
 
-### POST `/api/check-document`
-Analyzes a document for contract errors.
-
-**Request**: 
-- `multipart/form-data`
-- Fields: `document` (file), `email` (string), `recaptcha_token` (string)
-
-**Response**:
-```json
-{
-  "success": true,
-  "summary": "Brief assessment",
-  "issues": [
-    {
-      "paragraphIndex": 0,
-      "issue": "Description",
-      "suggestion": "Fix suggestion",
-      "severity": "high|medium|low"
-    }
-  ],
-  "paragraphs": [...]
-}
-```
-
-### POST `/api/share-issue`
-Creates a shareable link for an issue.
-
-**Request**:
-```json
-{
-  "paragraphIndex": 0,
-  "issue": "Description",
-  "suggestion": "Fix",
-  "severity": "high"
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "shareUrl": "https://yourdomain.com/issue/uuid",
-  "shareId": "uuid"
-}
-```
-
-### GET `/api/gallery?page=1&per_page=20`
-Retrieves paginated list of shared issues.
-
-**Response**:
-```json
-{
-  "success": true,
-  "issues": [...],
-  "page": 1,
-  "perPage": 20,
-  "total": 100,
-  "totalPages": 5
-}
-```
-
-### GET `/issue/<share_id>`
-Displays a single shared issue.
-
-### GET `/gallery`
-Public gallery page.
-
-## Configuration
-
-### Rate Limiting
-
-Default limits (in `app.py`):
-- 200 requests per day
-- 50 requests per hour
-- 5 document checks per hour
-
-Adjust in the `@limiter.limit()` decorators.
-
-### File Size Limits
-
-Default: 10MB maximum file size
-
-Adjust in `app.py`:
-```python
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
-```
-
-### Email Validation
-
-The app blocks common free email providers. To modify the list, edit the `blocked_domains` array in the `validate_email()` function in `app.py`.
-
-### Claude Model Configuration
-
-The app uses `claude-sonnet-4-20250514`. To change models, update the model name in the `check_document()` function.
-
-## Security Considerations
-
-1. **API Keys**: Never commit API keys to version control. Use environment variables.
-2. **reCAPTCHA**: Properly configure reCAPTCHA to prevent abuse.
-3. **Rate Limiting**: Adjust rate limits based on your usage patterns.
-4. **CORS**: Restrict to your specific domain(s) in production.
-5. **Input Validation**: The app validates file types, sizes, and email formats.
-6. **Database**: Use SSL connections for production databases.
-
-## Customization
-
-### Branding
-
-1. Update the title and taglines in `index.html`
-2. Modify CSS variables for colors and fonts
-3. Replace links in the footer
-
-### Analysis Prompt
-
-To modify what Claude looks for, edit the `prompt` variable in the `check_document()` function in `app.py`.
-
-### Styling
-
-All styles are in the `<style>` tag in `index.html`. The design uses:
-- Font: Lora (serif) and Playfair Display
-- Color scheme: Dark blue gradient background
-- Mobile responsive design
-
-## Troubleshooting
-
-### "ANTHROPIC_API_KEY environment variable must be set"
-- Make sure you've set the `ANTHROPIC_API_KEY` environment variable
-- Check your `.env` file or deployment platform settings
-
-### "reCAPTCHA verification failed"
-- Verify your reCAPTCHA site key is correct in `index.html`
-- Ensure your secret key is correct in environment variables
-- Check that your domain is registered in Google reCAPTCHA admin
-
-### Database connection errors
-- Verify `DATABASE_URL` is correct
-- Ensure PostgreSQL is running
-- Check database credentials and permissions
-
-### Rate limit errors
-- Wait for the rate limit window to reset
-- Adjust rate limits in `app.py` if needed
-- Consider implementing Redis for distributed rate limiting
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+- **Tweak what Claude looks for** → edit the `prompt` variable in `app.py` (`check_document()` function)
+- **Rate limits** → `@limiter.limit("5 per hour")` decorator on `/api/check-document`
+- **Blocked free email domains** → `validate_email()` in `app.py`
+- **File size limit** → `MAX_CONTENT_LENGTH` in `app.py` (default 10 MB)
+- **Styling** → `static/index.html` `<style>` block
 
 ## License
 
-MIT License - feel free to use this project for any purpose.
+MIT.
 
-## Acknowledgments
+## Disclaimer
 
-- Powered by [Anthropic's Claude](https://www.anthropic.com/claude)
-- Built with Flask and React
-- Inspired by the need for better contract review tools
-
-## Support
-
-For issues, questions, or contributions, please open an issue on GitHub.
-
-## Roadmap
-
-- [ ] Support for PDF files
-- [ ] Multi-language support
-- [ ] Batch document processing
-- [ ] Document comparison tool
-- [ ] Export analysis reports
-- [ ] Custom analysis templates
-- [ ] Integration with document management systems
-
----
-
-**Disclaimer**: This tool is not a substitute for professional legal advice. It's designed to help identify potential issues, but should not be relied upon as the sole means of contract review. Always consult with a qualified attorney for legal matters.
+This is a starting-point tool to find common errors. Not legal advice. Does not create an attorney-client relationship. For real review — drafted, redlined, signed off by a Bar Council-enrolled advocate — go to [sigil91.com](https://sigil91.com).

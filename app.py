@@ -3,8 +3,9 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from markupsafe import escape
-import anthropic
 import os
+from google import genai
+from google.genai import types as genai_types
 from docx import Document
 import io
 import requests
@@ -12,13 +13,15 @@ import psycopg
 from datetime import datetime
 import uuid
 import re
+import json
 
 app = Flask(__name__)
 
 # CORS Configuration - Update with your actual domain(s)
 CORS(app, origins=[
-    "https://yourdomain.com",
-    "https://www.yourdomain.com",
+    "https://findthefuckup.in",
+    "https://www.findthefuckup.in",
+    "https://sigil91.com",
     "http://localhost:3000",  # For local development
     "http://localhost:5000"   # For local development
 ])
@@ -36,13 +39,14 @@ limiter = Limiter(
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
 
 # Environment variables - MUST be set before running
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY')
 DATABASE_URL = os.environ.get('DATABASE_URL')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
 
 # Validate required environment variables
-if not ANTHROPIC_API_KEY:
-    raise ValueError("ANTHROPIC_API_KEY environment variable must be set")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable must be set")
 if not RECAPTCHA_SECRET_KEY:
     raise ValueError("RECAPTCHA_SECRET_KEY environment variable must be set")
 
@@ -81,9 +85,35 @@ def init_db():
             )
         """)
 
+        # Analyses metadata table — NO CONTRACT TEXT, only counts + tags
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS analyses (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                email VARCHAR(255),
+                domain VARCHAR(255),
+                ip_address VARCHAR(45),
+                file_size_bytes INTEGER,
+                paragraph_count INTEGER,
+                issue_count INTEGER,
+                severity_high INTEGER DEFAULT 0,
+                severity_medium INTEGER DEFAULT 0,
+                severity_low INTEGER DEFAULT 0,
+                categories TEXT,
+                model_used VARCHAR(50),
+                duration_seconds NUMERIC(5,2)
+            )
+        """)
+
         # Create index for faster lookups
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_share_id ON shared_issues(share_id)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_analyses_domain ON analyses(domain)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses(created_at)
         """)
 
         conn.commit()
@@ -116,6 +146,47 @@ def save_email(email, ip_address=None):
         print(f"Email saved: {email}")
     except Exception as e:
         print(f"Error saving email: {str(e)}")
+
+
+def save_analysis_metadata(email, ip_address, file_size_bytes, paragraph_count,
+                            issues, model_used, duration_seconds):
+    """
+    Save analysis metadata for funnel/marketing intelligence.
+    DOES NOT save contract text or issue text — only aggregates and category tags.
+    """
+    if not DATABASE_URL:
+        return
+
+    try:
+        domain = email.split('@')[1].lower() if email and '@' in email else None
+        counts = {'high': 0, 'medium': 0, 'low': 0}
+        categories = set()
+        for iss in issues or []:
+            sev = (iss.get('severity') or '').lower()
+            if sev in counts:
+                counts[sev] += 1
+            cat = (iss.get('category') or '').upper().strip()
+            if cat:
+                categories.add(cat)
+
+        conn = psycopg.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO analyses
+               (email, domain, ip_address, file_size_bytes, paragraph_count, issue_count,
+                severity_high, severity_medium, severity_low, categories, model_used, duration_seconds)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (email, domain, ip_address, file_size_bytes, paragraph_count, len(issues or []),
+             counts['high'], counts['medium'], counts['low'],
+             ','.join(sorted(categories)) if categories else None,
+             model_used, duration_seconds)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"Analysis metadata saved (domain={domain}, issues={len(issues or [])}, cats={categories})")
+    except Exception as e:
+        print(f"Error saving analysis metadata: {str(e)}")
 
 
 # Initialize database on startup
@@ -173,6 +244,10 @@ def validate_email(email):
 
 def verify_recaptcha(token):
     """Verify reCAPTCHA v3 token with Google"""
+    # Local dev bypass — set DISABLE_RECAPTCHA=true to skip verification
+    if os.environ.get('DISABLE_RECAPTCHA', '').lower() == 'true':
+        print("INFO: reCAPTCHA disabled via DISABLE_RECAPTCHA env var (local dev only)")
+        return True
     if not RECAPTCHA_SECRET_KEY:
         print("WARNING: RECAPTCHA_SECRET_KEY not set")
         return True  # Allow through in development if not configured
@@ -259,26 +334,63 @@ def check_document():
         # Combine all paragraphs for analysis
         full_text = '\n\n'.join([p['text'] for p in paragraphs])
 
-        # STEP 5: Call Anthropic API for analysis
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        # STEP 5: Call Gemini API for analysis
+        import time
+        analysis_start = time.time()
+        model_used = None
 
-        # Create detailed prompt for Claude
-        prompt = f"""You are a meticulous legal contract reviewer. Analyze the following contract for potential errors, inconsistencies, or problems.
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        # Resilient model fallback chain (primary -> lite -> 2.0-flash on quota/availability errors)
+        model_chain = [GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+        # De-dup while preserving order
+        seen = set()
+        model_chain = [m for m in model_chain if not (m in seen or seen.add(m))]
+
+        # Create detailed prompt for Claude — India-specific
+        prompt = f"""You are a meticulous Indian commercial-contracts reviewer with deep familiarity with Indian law and Indian SaaS commercial practice.
+
+Analyse the following contract for potential errors, inconsistencies, and problems — both general drafting issues and Indian-jurisdiction-specific issues.
 
 For each issue you find, provide:
 1. The paragraph number where the issue occurs
-2. A clear description of the issue
-3. A suggested fix or improvement
+2. A clear description of the issue (one to two sentences)
+3. A suggested fix or improvement (concrete language where possible)
 4. Severity level (high, medium, or low)
+5. A short category tag from this fixed list (choose the single closest match):
+   DPDPA, FEMA, GST, STAMP_DUTY, CONTRACT_ACT, IT_ACT, ARBITRATION_ACT, COMPANIES_ACT,
+   LIMITATION_ACT, INDEMNITY, LIABILITY, IP, TERMINATION, GOVERNING_LAW, DEFINITIONS,
+   AMBIGUITY, CROSS_BORDER, NON_COMPETE, CONFIDENTIALITY, PAYMENT, OTHER
 
-Focus on:
+GENERAL drafting issues to flag:
 - Contradictory clauses
 - Ambiguous language
-- Missing definitions
-- Incorrect cross-references
-- Unusual or risky terms
-- Grammatical errors that affect meaning
-- Inconsistent terminology
+- Missing or undefined defined terms
+- Broken or incorrect cross-references
+- Unusual or asymmetric risk terms (e.g. uncapped indemnities, perpetual licences, IP transfer hidden in payment clauses)
+- Liability caps that don't align with indemnity exposure
+- Termination triggers vs notice periods that conflict
+- Governing law vs jurisdiction conflicts
+- Grammatical errors that change meaning
+- Inconsistent terminology (different names for the same concept)
+
+INDIAN-LAW-SPECIFIC issues to flag (these are the highest-value finds for Indian SaaS):
+- DPDPA 2023 compliance gaps: missing consent provisions, no breach notification mechanism (72-hour requirement), no data principal rights, no purpose limitation, no retention schedule, cross-border transfer terms that don't address the DPDPA blacklist mechanism
+- Indian Contract Act 1872 issues: clauses that fail for want of consideration, unenforceable restraint-of-trade beyond Section 27, penalty clauses (vs liquidated damages) that won't survive Section 74
+- FEMA implications: USD payment terms without addressing FEMA compliance, foreign-entity invoicing structure, intercompany agreements that look like undisclosed external commercial borrowing (ECB)
+- GST treatment: missing or wrong place-of-supply language, no GST registration warranties, no clarity on whether prices are inclusive or exclusive of GST, no obligation to issue tax invoice
+- Stamp duty: contracts that require stamping but don't reference it, executed-in-multiple-states issues, missing e-stamp acknowledgment for high-value contracts
+- IT Act 2000: electronic signature clauses that don't reference Section 5 / Section 3A, electronic record clauses that don't account for Indian evidentiary rules
+- Arbitration & Conciliation Act 1996: seat vs venue confusion (BALCO line), unclear "Indian" governing law for foreign parties, missing emergency arbitrator provisions
+- Companies Act 2013: related-party transaction clauses missing Section 188 compliance, director indemnity beyond what Section 197 permits
+- Limitation Act 1963: contractually shortened limitation periods that won't survive (Section 28), claim-extinction clauses
+- Bar Council of India advertising restrictions where one party is a law firm or legal services provider
+- Indian payroll / employment compliance gaps in services agreements involving on-site personnel (PF, ESI, professional tax, Shops & Establishments registration)
+
+ALSO LOOK FOR:
+- Foreign-law MSA being signed by an Indian entity without considering Indian-side enforceability (e.g. Delaware governing law with no carve-out for Indian mandatory law)
+- Cross-border data flows without addressing both GDPR and DPDPA
+- Currency-conversion clauses that ignore RBI reference rates
+- Indemnity payable in foreign currency by an Indian entity (FEMA implications)
 
 Contract text:
 
@@ -286,38 +398,72 @@ Contract text:
 
 Respond in JSON format with this structure:
 {{
-    "summary": "Brief overall assessment (1-2 sentences)",
+    "summary": "Brief overall assessment (1-2 sentences) — be direct, mention if the contract is Indian-law or foreign-law and flag the single most serious issue first",
     "issues": [
         {{
             "paragraphIndex": 0,
             "issue": "Description of the issue",
             "suggestion": "How to fix it",
-            "severity": "high|medium|low"
+            "severity": "high|medium|low",
+            "category": "DPDPA|FEMA|GST|STAMP_DUTY|CONTRACT_ACT|IT_ACT|ARBITRATION_ACT|COMPANIES_ACT|LIMITATION_ACT|INDEMNITY|LIABILITY|IP|TERMINATION|GOVERNING_LAW|DEFINITIONS|AMBIGUITY|CROSS_BORDER|NON_COMPETE|CONFIDENTIALITY|PAYMENT|OTHER"
         }}
     ]
 }}"""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        response = None
+        last_err = None
+        for model_name in model_chain:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        max_output_tokens=8192,
+                        temperature=0.2,
+                    ),
+                )
+                print(f"INFO: Gemini call succeeded on model={model_name}")
+                model_used = model_name
+                break
+            except Exception as e:
+                last_err = e
+                # Retry the chain on availability/quota errors; bail on others
+                err_str = str(e)
+                if any(code in err_str for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
+                    print(f"WARN: {model_name} unavailable ({type(e).__name__}); trying next in chain")
+                    continue
+                # Non-retryable: re-raise
+                raise
 
-        # Parse Claude's response
-        response_text = message.content[0].text
-        
-        # Extract JSON from response (in case Claude adds explanation)
-        import json
+        if response is None:
+            print(f"ERROR: all Gemini models exhausted. Last error: {last_err}")
+            return jsonify({'error': 'Gemini is temporarily overloaded across all models. Try again in a few minutes.'}), 503
+
+        # Parse Gemini's response (response_mime_type=application/json returns clean JSON)
+        response_text = response.text or ""
+
+        # Belt-and-suspenders: extract JSON if the model added prose
         json_start = response_text.find('{')
         json_end = response_text.rfind('}') + 1
         if json_start != -1 and json_end > json_start:
             response_text = response_text[json_start:json_end]
-        
+
         analysis = json.loads(response_text)
 
-        # STEP 6: Return results with original paragraphs
+        # STEP 6: Persist metadata (no contract text, no issue text — counts + tags only)
+        duration = round(time.time() - analysis_start, 2)
+        save_analysis_metadata(
+            email=email,
+            ip_address=ip_address,
+            file_size_bytes=len(file_content),
+            paragraph_count=len(paragraphs),
+            issues=analysis.get('issues', []),
+            model_used=model_used,
+            duration_seconds=duration,
+        )
+
+        # STEP 7: Return results with original paragraphs
         return jsonify({
             'success': True,
             'summary': analysis.get('summary', 'Analysis complete'),
@@ -325,9 +471,6 @@ Respond in JSON format with this structure:
             'paragraphs': paragraphs
         })
 
-    except anthropic.APIError as e:
-        print(f"Anthropic API error: {str(e)}")
-        return jsonify({'error': 'Error analyzing document. Please try again.'}), 500
     except json.JSONDecodeError as e:
         print(f"JSON parsing error: {str(e)}")
         return jsonify({'error': 'Error processing analysis results'}), 500
@@ -949,6 +1092,77 @@ def gallery():
     return html
 
 
+@app.route('/api/stats', methods=['GET'])
+def stats():
+    """
+    Aggregate funnel intelligence. No contract content — only counts + category tags.
+    Protect this in prod (admin auth) before exposing publicly.
+    """
+    if not DATABASE_URL:
+        return jsonify({'error': 'Stats unavailable (no DATABASE_URL)'}), 503
+
+    try:
+        conn = psycopg.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                COUNT(*) AS total_analyses,
+                COUNT(DISTINCT domain) AS distinct_domains,
+                COALESCE(SUM(issue_count), 0) AS total_issues,
+                COALESCE(SUM(severity_high), 0) AS total_high,
+                COALESCE(SUM(severity_medium), 0) AS total_medium,
+                COALESCE(SUM(severity_low), 0) AS total_low,
+                COALESCE(AVG(issue_count), 0) AS avg_issues_per_doc,
+                COALESCE(AVG(duration_seconds), 0) AS avg_duration_s
+            FROM analyses
+        """)
+        row = cur.fetchone()
+        overall = {
+            'total_analyses': row[0],
+            'distinct_domains': row[1],
+            'total_issues': row[2],
+            'total_high': row[3],
+            'total_medium': row[4],
+            'total_low': row[5],
+            'avg_issues_per_doc': round(float(row[6]), 1),
+            'avg_duration_s': round(float(row[7]), 1),
+        }
+
+        # Top issue categories across the funnel
+        cur.execute("""
+            SELECT trim(unnest) AS category, COUNT(*) AS times_seen
+            FROM analyses, unnest(string_to_array(categories, ','))
+            WHERE categories IS NOT NULL AND trim(unnest) <> ''
+            GROUP BY 1
+            ORDER BY 2 DESC
+            LIMIT 25
+        """)
+        category_counts = [{'category': r[0], 'analyses_with_it': r[1]} for r in cur.fetchall()]
+
+        # Top domains uploading (good for sales lead identification)
+        cur.execute("""
+            SELECT domain, COUNT(*) AS uploads
+            FROM analyses
+            WHERE domain IS NOT NULL
+            GROUP BY 1
+            ORDER BY 2 DESC
+            LIMIT 25
+        """)
+        top_domains = [{'domain': r[0], 'uploads': r[1]} for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+        return jsonify({
+            'overall': overall,
+            'categories': category_counts,
+            'top_domains': top_domains,
+        })
+    except Exception as e:
+        print(f"Error in /api/stats: {str(e)}")
+        return jsonify({'error': 'Failed to fetch stats'}), 500
+
+
 @app.errorhandler(413)
 def file_too_large(e):
     return jsonify({'error': 'File too large (max 10MB)'}), 413
@@ -973,4 +1187,4 @@ def handle_error(e):
 if __name__ == '__main__':
     # This should only be used for local development
     # In production, use gunicorn (see Procfile)
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)))
