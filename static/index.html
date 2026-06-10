@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find the Fuckup · India — Contract error checker for Indian SaaS</title>
-    <meta name="description" content="Drop an Indian commercial contract, get the fuckups. DPDPA, FEMA, GST, stamp duty, Indian Contract Act and the usual drafting sins. Built by Sigil.">
+    <title>Find the Flaw · India — Contract error checker for Indian SaaS</title>
+    <meta name="description" content="Drop an Indian commercial contract, get the flaws. DPDPA, FEMA, GST, stamp duty, Indian Contract Act and the usual drafting sins. Built by Sigil.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -36,13 +40,13 @@
         html, body {
             background: var(--canvas);
             color: var(--ink);
-            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
             -webkit-font-smoothing: antialiased;
             text-rendering: optimizeLegibility;
             min-height: 100vh;
         }
 
-        .display { font-family: Georgia, "Times New Roman", serif; }
+        .display { font-family: "Instrument Serif", Georgia, "Times New Roman", serif; }
 
         ::selection { background: rgba(250,250,247,0.15); color: var(--ink); }
 
@@ -76,14 +80,14 @@
         }
 
         .brand-name {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 19px;
             letter-spacing: -0.022em;
             color: var(--ink);
         }
 
         .nav-meta {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             font-size: 13px;
             color: var(--ink-55);
@@ -113,7 +117,7 @@
         }
 
         h1.hero {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: clamp(48px, 8vw, 84px);
             line-height: 0.96;
             letter-spacing: -0.022em;
@@ -123,7 +127,7 @@
         h1.hero .italic { font-style: italic; }
 
         .lede {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: clamp(18px, 2.2vw, 22px);
             line-height: 1.5;
             color: var(--ink-85);
@@ -160,7 +164,7 @@
         }
 
         .drop-title {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 22px;
             letter-spacing: -0.015em;
             color: var(--ink);
@@ -168,7 +172,7 @@
         }
 
         .drop-sub {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             font-size: 14px;
             color: var(--ink-55);
@@ -192,13 +196,13 @@
         }
         .drag-overlay.active { display: flex; }
         .drag-overlay-text {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 36px;
             letter-spacing: -0.022em;
             color: var(--ink);
         }
         .drag-overlay-sub {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             color: var(--ink-55);
             margin-top: 8px;
@@ -238,13 +242,13 @@
             margin-bottom: 18px;
         }
         .modal h2 {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 26px;
             letter-spacing: -0.015em;
             margin-bottom: 8px;
         }
         .modal p {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             font-size: 14.5px;
             color: var(--ink-70);
@@ -266,7 +270,7 @@
             border-bottom: 1px solid var(--ink-25);
             padding: 8px 0 10px;
             color: var(--ink);
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 17px;
             outline: none;
             transition: border-color 0.2s;
@@ -324,7 +328,7 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             color: var(--ink-70);
             font-size: 18px;
@@ -349,7 +353,7 @@
             margin-bottom: 40px;
         }
         .results-count {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: clamp(36px, 6vw, 56px);
             letter-spacing: -0.022em;
             line-height: 1;
@@ -357,7 +361,7 @@
         }
         .results-count .num { font-style: italic; }
         .results-summary {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 17px;
             line-height: 1.55;
             color: var(--ink-85);
@@ -417,7 +421,7 @@
         .issue-sev.low    { color: var(--low); }
 
         .issue-category {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             font-size: 12px;
             color: var(--ink-55);
@@ -438,7 +442,7 @@
         .issue-where:hover { color: var(--ink-70); }
 
         .issue-text {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 18px;
             line-height: 1.5;
             color: var(--ink);
@@ -453,7 +457,7 @@
             border-left: 2px solid var(--ink-12);
         }
         .issue-fix-label {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-style: italic;
             color: var(--ink-55);
             margin-right: 6px;
@@ -474,7 +478,7 @@
         .paragraph {
             padding: 12px 16px;
             margin-bottom: 6px;
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 14.5px;
             line-height: 1.65;
             color: var(--ink-70);
@@ -510,7 +514,7 @@
             margin-bottom: 14px;
         }
         .sigil-cta-headline {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 26px;
             line-height: 1.2;
             letter-spacing: -0.015em;
@@ -526,7 +530,7 @@
             margin-bottom: 22px;
         }
         .sigil-cta-link {
-            font-family: Georgia, serif;
+            font-family: "Instrument Serif", Georgia, serif;
             font-size: 15px;
             color: var(--ink);
             text-decoration: underline;
@@ -710,7 +714,7 @@
                         <header className="nav">
                             <a className="brand" href="/">
                                 <SigilMark />
-                                <span className="brand-name">Find the Fuckup · India</span>
+                                <span className="brand-name">Find the Flaw · India</span>
                             </a>
                             <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
                         </header>
@@ -721,7 +725,7 @@
                                     <div className="eyebrow">Findings</div>
                                     <div className="results-count">
                                         <span className="num">{issues.length}</span>{' '}
-                                        {issues.length === 1 ? 'fuckup' : 'fuckups'} found
+                                        {issues.length === 1 ? 'flaw' : 'flaws'} found
                                     </div>
                                     {results.summary && (
                                         <div className="results-summary">{results.summary}</div>
@@ -796,7 +800,7 @@
                                     </div>
                                     <a
                                         className="sigil-cta-link"
-                                        href="https://sigil91.com/?utm_source=findthefuckup&utm_medium=results-cta&utm_campaign=tool-handoff"
+                                        href="https://sigil91.com/?utm_source=findtheflaw&utm_medium=results-cta&utm_campaign=tool-handoff"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                     >
@@ -811,9 +815,9 @@
                         </main>
 
                         <footer>
-                            <span>© 2026 Sigil · Not legal advice. Your contract is not saved.</span>
+                            <span>© 2026 Sigil · Not legal advice.</span>
                             <span className="right">
-                                <a href="https://sigil91.com/?utm_source=findthefuckup&utm_medium=footer" target="_blank" rel="noopener noreferrer">sigil91.com</a>
+                                <a href="https://sigil91.com/?utm_source=findtheflaw&utm_medium=footer" target="_blank" rel="noopener noreferrer">sigil91.com</a>
                             </span>
                         </footer>
                     </div>
@@ -833,7 +837,7 @@
                     <header className="nav">
                         <a className="brand" href="/">
                             <SigilMark />
-                            <span className="brand-name">Find the Fuckup · India</span>
+                            <span className="brand-name">Find the Flaw · India</span>
                         </a>
                         <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
                     </header>
@@ -843,15 +847,15 @@
                             <div className="eyebrow">For Indian commercial contracts</div>
 
                             <h1 className="hero">
-                                Your expensive lawyers <span className="italic">are worse</span> than you think.
+                                Every contract <span className="italic">hides</span> something.
                             </h1>
 
                             <p className="lede">
-                                Drop a contract. Get the fuckups — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, and the usual drafting sins.
+                                Drop a contract. Get the flaws — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, and the usual drafting sins.
                             </p>
 
                             <p className="sub-lede">
-                                No login. No save. The file leaves your browser, the AI reads every line, you get a report in about 25 seconds. Want a Bar Council-enrolled advocate to actually sign off on it — <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer" style={{textDecoration:'underline', textUnderlineOffset:'4px', textDecorationColor:'var(--ink-40)'}}>Sigil</a> does that.
+                                Drop a contract, the AI reads every line, you get a report in about 25 seconds. Want a Bar Council-enrolled advocate to actually sign off on it — <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer" style={{textDecoration:'underline', textUnderlineOffset:'4px', textDecorationColor:'var(--ink-40)'}}>Sigil</a> does that.
                             </p>
 
                             {error && <div className="error-banner">{error}</div>}
@@ -887,7 +891,7 @@
                             <div className="modal" onClick={(e) => e.stopPropagation()}>
                                 <div className="modal-eyebrow">One more thing</div>
                                 <h2>Your work email</h2>
-                                <p>We'll show you the fuckups in your contract. No newsletter, no sales drip.</p>
+                                <p>We'll show you the flaws in your contract. No newsletter, no sales drip.</p>
 
                                 <label htmlFor="email">Work email</label>
                                 <input
@@ -904,7 +908,7 @@
                                 <div className="modal-actions">
                                     <button className="button ghost" onClick={() => setShowModal(false)}>Cancel</button>
                                     <button className="button" onClick={handleSubmit} disabled={!email}>
-                                        Find the fuckups →
+                                        Find the flaws →
                                     </button>
                                 </div>
                             </div>
@@ -912,7 +916,7 @@
                     )}
 
                     <footer>
-                        <span>© 2026 Sigil · Not legal advice. Your contract is not saved.</span>
+                        <span>© 2026 Sigil · Not legal advice.</span>
                         <span className="right">
                             <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">sigil91.com</a>
                         </span>

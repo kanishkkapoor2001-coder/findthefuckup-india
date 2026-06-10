@@ -1,6 +1,6 @@
-# Find the Fuckup · India
+# Find the Flaw · India
 
-**Drop a contract, get the fuckups.** AI-powered contract analyser tuned for Indian commercial paper — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, plus the usual drafting sins.
+**Drop a contract, get the flaws.** AI-powered contract analyser tuned for Indian commercial paper — DPDPA, FEMA, GST, stamp duty, Indian Contract Act, plus the usual drafting sins.
 
 Built by [Sigil](https://sigil91.com).
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 # 2. Set env vars (see .env.example)
 export GEMINI_API_KEY=AIza...
 export RECAPTCHA_SECRET_KEY=...
-export DATABASE_URL=postgresql://user:password@localhost:5432/findthefuckup
+export DATABASE_URL=postgresql://user:password@localhost:5432/findtheflaw
 
 # 3. Run
 python app.py

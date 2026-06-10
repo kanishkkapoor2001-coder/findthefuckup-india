@@ -41,6 +41,7 @@ app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
 # Environment variables - MUST be set before running
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY')
+RECAPTCHA_SITE_KEY = os.environ.get('RECAPTCHA_SITE_KEY', '')  # public site key, injected into static/index.html at serve time
 DATABASE_URL = os.environ.get('DATABASE_URL')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
 
@@ -85,7 +86,7 @@ def init_db():
             )
         """)
 
-        # Analyses metadata table — NO CONTRACT TEXT, only counts + tags
+        # Analyses table — stores contract text, paragraphs, analysis JSON, plus metadata
         cur.execute("""
             CREATE TABLE IF NOT EXISTS analyses (
                 id SERIAL PRIMARY KEY,
@@ -101,9 +102,24 @@ def init_db():
                 severity_low INTEGER DEFAULT 0,
                 categories TEXT,
                 model_used VARCHAR(50),
-                duration_seconds NUMERIC(5,2)
+                duration_seconds NUMERIC(5,2),
+                contract_text TEXT,
+                analysis_summary TEXT,
+                analysis_issues_json TEXT
             )
         """)
+
+        # Best-effort migration for existing tables that pre-date the text columns
+        for column_def in (
+            "contract_text TEXT",
+            "analysis_summary TEXT",
+            "analysis_issues_json TEXT",
+        ):
+            col_name = column_def.split()[0]
+            try:
+                cur.execute(f"ALTER TABLE analyses ADD COLUMN IF NOT EXISTS {column_def}")
+            except Exception as mig_err:
+                print(f"(migration skipped for {col_name}: {mig_err})")
 
         # Create index for faster lookups
         cur.execute("""
@@ -148,16 +164,17 @@ def save_email(email, ip_address=None):
         print(f"Error saving email: {str(e)}")
 
 
-def save_analysis_metadata(email, ip_address, file_size_bytes, paragraph_count,
-                            issues, model_used, duration_seconds):
+def save_analysis(email, ip_address, file_size_bytes, paragraph_count,
+                   issues, model_used, duration_seconds,
+                   contract_text=None, analysis_summary=None):
     """
-    Save analysis metadata for funnel/marketing intelligence.
-    DOES NOT save contract text or issue text — only aggregates and category tags.
+    Save the analysis: full contract text + paragraphs + AI analysis + metadata.
     """
     if not DATABASE_URL:
         return
 
     try:
+        import json as _json
         domain = email.split('@')[1].lower() if email and '@' in email else None
         counts = {'high': 0, 'medium': 0, 'low': 0}
         categories = set()
@@ -169,24 +186,28 @@ def save_analysis_metadata(email, ip_address, file_size_bytes, paragraph_count,
             if cat:
                 categories.add(cat)
 
+        issues_json = _json.dumps(issues or [], ensure_ascii=False)
+
         conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO analyses
                (email, domain, ip_address, file_size_bytes, paragraph_count, issue_count,
-                severity_high, severity_medium, severity_low, categories, model_used, duration_seconds)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                severity_high, severity_medium, severity_low, categories, model_used, duration_seconds,
+                contract_text, analysis_summary, analysis_issues_json)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (email, domain, ip_address, file_size_bytes, paragraph_count, len(issues or []),
              counts['high'], counts['medium'], counts['low'],
              ','.join(sorted(categories)) if categories else None,
-             model_used, duration_seconds)
+             model_used, duration_seconds,
+             contract_text, analysis_summary, issues_json)
         )
         conn.commit()
         cur.close()
         conn.close()
-        print(f"Analysis metadata saved (domain={domain}, issues={len(issues or [])}, cats={categories})")
+        print(f"Analysis saved (domain={domain}, paragraphs={paragraph_count}, issues={len(issues or [])}, cats={categories})")
     except Exception as e:
-        print(f"Error saving analysis metadata: {str(e)}")
+        print(f"Error saving analysis: {str(e)}")
 
 
 # Initialize database on startup
@@ -195,9 +216,16 @@ init_db()
 
 @app.route('/')
 def home():
-    """Serve the main index.html page"""
+    """Serve index.html with the reCAPTCHA site key injected from env."""
     try:
-        return app.send_static_file('index.html')
+        index_path = os.path.join(app.static_folder, 'index.html')
+        with open(index_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+        # Replace the placeholder with the real site key from env.
+        # If RECAPTCHA_SITE_KEY is empty, leave the placeholder so it's obvious in dev.
+        if RECAPTCHA_SITE_KEY:
+            html = html.replace('YOUR_RECAPTCHA_SITE_KEY_HERE', RECAPTCHA_SITE_KEY)
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
     except Exception as e:
         print(f"Error serving index.html: {str(e)}")
         return "Error loading page", 500
@@ -355,11 +383,21 @@ For each issue you find, provide:
 1. The paragraph number where the issue occurs
 2. A clear description of the issue (one to two sentences)
 3. A suggested fix or improvement (concrete language where possible)
-4. Severity level (high, medium, or low)
+4. Severity level (high, medium, or low) — calibration rules:
+   - HIGH: direct logical contradictions inside a clause or across clauses (e.g. "30 days notice" + "immediate effect" in the same clause); clauses void or unenforceable under Indian statute (Section 27 restraint of trade, Section 28 shortened limitation, Section 74 penalty); uncapped indemnity; DPDPA non-compliance that would attract a penalty; FEMA non-compliance that would attract RBI scrutiny; missing stamp duty on a high-value contract.
+   - MEDIUM: ambiguity or drafting error that creates real risk but is fixable; weak DPDPA/GST/FEMA hygiene; non-fatal stamp duty silence; misaligned caps/exclusions; missing standard protections.
+   - LOW: stylistic, definitional, or housekeeping issues that don't change enforceability.
 5. A short category tag from this fixed list (choose the single closest match):
    DPDPA, FEMA, GST, STAMP_DUTY, CONTRACT_ACT, IT_ACT, ARBITRATION_ACT, COMPANIES_ACT,
    LIMITATION_ACT, INDEMNITY, LIABILITY, IP, TERMINATION, GOVERNING_LAW, DEFINITIONS,
    AMBIGUITY, CROSS_BORDER, NON_COMPETE, CONFIDENTIALITY, PAYMENT, OTHER
+
+   Category routing rules (apply BEFORE picking a tag):
+   - Any "penalty vs liquidated damages" / Section 74 issue → CONTRACT_ACT (NOT PAYMENT).
+   - Any restraint-of-trade / Section 27 issue → NON_COMPETE.
+   - Any contractually shortened limitation period / Section 28 issue → LIMITATION_ACT.
+   - PAYMENT is for invoicing mechanics, currency, set-off, late fees ONLY when the statute isn't the point.
+   - When in doubt between a statute tag and a generic tag, ALWAYS pick the statute tag.
 
 GENERAL drafting issues to flag:
 - Contradictory clauses
@@ -378,7 +416,7 @@ INDIAN-LAW-SPECIFIC issues to flag (these are the highest-value finds for Indian
 - Indian Contract Act 1872 issues: clauses that fail for want of consideration, unenforceable restraint-of-trade beyond Section 27, penalty clauses (vs liquidated damages) that won't survive Section 74
 - FEMA implications: USD payment terms without addressing FEMA compliance, foreign-entity invoicing structure, intercompany agreements that look like undisclosed external commercial borrowing (ECB)
 - GST treatment: missing or wrong place-of-supply language, no GST registration warranties, no clarity on whether prices are inclusive or exclusive of GST, no obligation to issue tax invoice
-- Stamp duty: contracts that require stamping but don't reference it, executed-in-multiple-states issues, missing e-stamp acknowledgment for high-value contracts
+- Stamp duty (DEFAULT CHECK — always flag if the contract is silent on stamping): commercial contracts intended for execution in India must address stamp duty. If the document does not mention stamping, the applicable Stamp Act/state schedule, an e-stamp acknowledgement, or how duty is allocated between parties, FLAG IT — silence on stamp duty is itself the issue. Also flag multi-state execution without addressing the higher-duty-state rule, missing e-stamp/SHCIL reference for high-value contracts, and unstamped instruments that would be inadmissible under Section 35 of the Indian Stamp Act.
 - IT Act 2000: electronic signature clauses that don't reference Section 5 / Section 3A, electronic record clauses that don't account for Indian evidentiary rules
 - Arbitration & Conciliation Act 1996: seat vs venue confusion (BALCO line), unclear "Indian" governing law for foreign parties, missing emergency arbitrator provisions
 - Companies Act 2013: related-party transaction clauses missing Section 188 compliance, director indemnity beyond what Section 197 permits
@@ -451,9 +489,9 @@ Respond in JSON format with this structure:
 
         analysis = json.loads(response_text)
 
-        # STEP 6: Persist metadata (no contract text, no issue text — counts + tags only)
+        # STEP 6: Persist the analysis (contract text + paragraphs + AI output + metadata)
         duration = round(time.time() - analysis_start, 2)
-        save_analysis_metadata(
+        save_analysis(
             email=email,
             ip_address=ip_address,
             file_size_bytes=len(file_content),
@@ -461,6 +499,8 @@ Respond in JSON format with this structure:
             issues=analysis.get('issues', []),
             model_used=model_used,
             duration_seconds=duration,
+            contract_text=full_text,
+            analysis_summary=analysis.get('summary'),
         )
 
         # STEP 7: Return results with original paragraphs
