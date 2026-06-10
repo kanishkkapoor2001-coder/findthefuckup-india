@@ -40,16 +40,12 @@ app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
 
 # Environment variables - MUST be set before running
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY')
-RECAPTCHA_SITE_KEY = os.environ.get('RECAPTCHA_SITE_KEY', '')  # public site key, injected into static/index.html at serve time
 DATABASE_URL = os.environ.get('DATABASE_URL')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
 
 # Validate required environment variables
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable must be set")
-if not RECAPTCHA_SECRET_KEY:
-    raise ValueError("RECAPTCHA_SECRET_KEY environment variable must be set")
 
 
 def init_db():
@@ -216,16 +212,9 @@ init_db()
 
 @app.route('/')
 def home():
-    """Serve index.html with the reCAPTCHA site key injected from env."""
+    """Serve index.html"""
     try:
-        index_path = os.path.join(app.static_folder, 'index.html')
-        with open(index_path, 'r', encoding='utf-8') as f:
-            html = f.read()
-        # Replace the placeholder with the real site key from env.
-        # If RECAPTCHA_SITE_KEY is empty, leave the placeholder so it's obvious in dev.
-        if RECAPTCHA_SITE_KEY:
-            html = html.replace('YOUR_RECAPTCHA_SITE_KEY_HERE', RECAPTCHA_SITE_KEY)
-        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+        return app.send_static_file('index.html')
     except Exception as e:
         print(f"Error serving index.html: {str(e)}")
         return "Error loading page", 500
@@ -247,97 +236,25 @@ def extract_text_from_docx(file_content):
         raise ValueError(f"Failed to parse document: {str(e)}")
 
 
-def validate_email(email):
-    """
-    Validate email and check if it's corporate (not common free domains)
-    Returns: (is_valid: bool, error_message: str|None)
-    """
-    blocked_domains = [
-        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
-        'aol.com', 'icloud.com', 'mail.com', 'protonmail.com',
-        'live.com', 'msn.com', 'yandex.com', 'zoho.com'
-    ]
-
-    # Basic email format validation
-    email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-    if not email_pattern.match(email):
-        return False, "Invalid email format"
-
-    domain = email.split('@')[1].lower()
-    if domain in blocked_domains:
-        return False, "Please use your company email address"
-
-    return True, None
-
-
-def verify_recaptcha(token):
-    """Verify reCAPTCHA v3 token with Google"""
-    # Local dev bypass — set DISABLE_RECAPTCHA=true to skip verification
-    if os.environ.get('DISABLE_RECAPTCHA', '').lower() == 'true':
-        print("INFO: reCAPTCHA disabled via DISABLE_RECAPTCHA env var (local dev only)")
-        return True
-    if not RECAPTCHA_SECRET_KEY:
-        print("WARNING: RECAPTCHA_SECRET_KEY not set")
-        return True  # Allow through in development if not configured
-
-    try:
-        response = requests.post(
-            'https://www.google.com/recaptcha/api/siteverify',
-            data={
-                'secret': RECAPTCHA_SECRET_KEY,
-                'response': token
-            },
-            timeout=5
-        )
-
-        result = response.json()
-
-        # For reCAPTCHA v3, check the score (0.0 to 1.0)
-        # 0.5 is a reasonable threshold - adjust based on your needs
-        if result.get('success') and result.get('score', 0) >= 0.5:
-            return True
-
-        print(f"reCAPTCHA verification failed: score={result.get('score', 0)}")
-        return False
-
-    except Exception as e:
-        print(f"Error verifying reCAPTCHA: {str(e)}")
-        return False
-
-
 @app.route('/api/check-document', methods=['POST'])
-@limiter.limit("5 per hour")  # Limit to 5 document checks per hour per IP
+@limiter.limit("10 per hour")  # Limit to 10 document checks per hour per IP
 def check_document():
     """
-    Main endpoint for document analysis
-    Expects: multipart/form-data with 'document' file, 'email', and 'recaptcha_token'
+    Main endpoint for document analysis.
+    Email + reCAPTCHA gating removed for the open public preview.
+    Expects: multipart/form-data with 'document' file.
     """
     try:
-        # STEP 1: Verify reCAPTCHA token
-        recaptcha_token = request.form.get('recaptcha_token')
-        if not recaptcha_token:
-            return jsonify({'error': 'reCAPTCHA verification required'}), 400
-
-        if not verify_recaptcha(recaptcha_token):
-            return jsonify({'error': 'reCAPTCHA verification failed. Please try again.'}), 400
-
-        # STEP 2: Validate email
-        email = request.form.get('email')
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-
-        is_valid, error_msg = validate_email(email)
-        if not is_valid:
-            return jsonify({'error': error_msg}), 400
-
-        # Save email to database with IP address
+        # Optional email — kept as a write-through so we can still build the funnel
+        # without gating access on it. May be absent.
+        email = request.form.get('email') or None
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
         if ip_address:
-            # Take first IP if there are multiple in X-Forwarded-For
             ip_address = ip_address.split(',')[0].strip()
-        save_email(email, ip_address)
+        if email:
+            save_email(email, ip_address)
 
-        # STEP 3: Get and validate uploaded file
+        # Get and validate uploaded file
         if 'document' not in request.files:
             return jsonify({'error': 'No document uploaded'}), 400
 

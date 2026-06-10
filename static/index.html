@@ -14,9 +14,6 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Google reCAPTCHA v3 — REPLACE WITH YOUR SITE KEY -->
-    <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY_HERE"></script>
-
     <style>
         :root {
             --canvas: #0A0A0A;
@@ -599,11 +596,9 @@
 
         function App() {
             const [file, setFile] = React.useState(null);
-            const [email, setEmail] = React.useState('');
             const [error, setError] = React.useState('');
             const [loading, setLoading] = React.useState(false);
             const [results, setResults] = React.useState(null);
-            const [showModal, setShowModal] = React.useState(false);
             const [dragOver, setDragOver] = React.useState(false);
             const [globalDrag, setGlobalDrag] = React.useState(false);
             const fileInputRef = React.useRef(null);
@@ -644,25 +639,17 @@
                 }
                 setFile(f);
                 setError('');
-                setShowModal(true);
+                handleSubmit(f);
             };
 
-            const handleSubmit = async () => {
-                if (!email || !file) return;
+            const handleSubmit = async (f) => {
+                const upload = f || file;
+                if (!upload) return;
                 setError('');
-                setShowModal(false);
                 setLoading(true);
                 try {
-                    let token = 'no-recaptcha';
-                    if (typeof window.grecaptcha !== 'undefined' && window.grecaptcha.execute) {
-                        try {
-                            token = await window.grecaptcha.execute('YOUR_RECAPTCHA_SITE_KEY_HERE', { action: 'submit' });
-                        } catch (_) { /* fall back to no-recaptcha token */ }
-                    }
                     const fd = new FormData();
-                    fd.append('document', file);
-                    fd.append('email', email);
-                    fd.append('recaptcha_token', token);
+                    fd.append('document', upload);
                     const res = await fetch('/api/check-document', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Failed to analyse document');
@@ -677,7 +664,6 @@
 
             const reset = () => {
                 setFile(null);
-                setEmail('');
                 setError('');
                 setResults(null);
             };
@@ -885,35 +871,6 @@
                             />
                         </div>
                     </main>
-
-                    {showModal && (
-                        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                            <div className="modal" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-eyebrow">One more thing</div>
-                                <h2>Your work email</h2>
-                                <p>We'll show you the flaws in your contract. No newsletter, no sales drip.</p>
-
-                                <label htmlFor="email">Work email</label>
-                                <input
-                                    type="email"
-                                    id="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="you@company.com"
-                                    autoFocus
-                                    onKeyPress={(e) => { if (e.key === 'Enter' && email) handleSubmit(); }}
-                                />
-                                <small>No Gmail / Yahoo / Outlook personal addresses.</small>
-
-                                <div className="modal-actions">
-                                    <button className="button ghost" onClick={() => setShowModal(false)}>Cancel</button>
-                                    <button className="button" onClick={handleSubmit} disabled={!email}>
-                                        Find the flaws →
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     <footer>
                         <span>© 2026 Sigil · Not legal advice.</span>
