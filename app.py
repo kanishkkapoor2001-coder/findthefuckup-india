@@ -448,46 +448,60 @@ Respond in JSON format with this structure:
     ]
 }}"""
 
-        response = None
+        # Walk the model chain. On EACH model we make up to 2 attempts: the second only fires if
+        # the response came back but failed to parse (truncation / prose leakage). Availability
+        # errors (503/429) skip immediately to the next model.
+        analysis = None
+        model_used = None
         last_err = None
+        json_parse_fail_detail = None
         for model_name in model_chain:
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=genai_types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        max_output_tokens=8192,
-                        temperature=0.2,
-                    ),
-                )
-                print(f"INFO: Gemini call succeeded on model={model_name}")
-                model_used = model_name
+            for attempt in (1, 2):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=genai_types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            max_output_tokens=32768,  # bumped from 8192 — long contracts produce >8k of JSON
+                            temperature=0.2,
+                        ),
+                    )
+                    response_text = (response.text or "").strip()
+                    # Belt-and-suspenders: extract JSON if the model added prose
+                    js = response_text.find('{')
+                    je = response_text.rfind('}') + 1
+                    if js != -1 and je > js:
+                        response_text = response_text[js:je]
+                    analysis = json.loads(response_text)
+                    print(f"INFO: Gemini call succeeded on model={model_name} attempt={attempt}")
+                    model_used = model_name
+                    break  # parsed cleanly, exit attempt loop
+                except json.JSONDecodeError as je_err:
+                    # Output came back but was truncated / malformed. Retry once on the SAME model.
+                    json_parse_fail_detail = f"{model_name} attempt {attempt}: {je_err}"
+                    print(f"WARN: JSON parse failed on {model_name} attempt {attempt}: {je_err}; tail={response_text[-200:]!r}")
+                    if attempt == 1:
+                        continue  # retry same model
+                    # Second attempt also failed — try the next model
+                    break
+                except Exception as e:
+                    last_err = e
+                    err_str = str(e)
+                    if any(code in err_str for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
+                        print(f"WARN: {model_name} unavailable ({type(e).__name__}); trying next in chain")
+                        break  # exit attempt loop, go to next model
+                    raise
+            if analysis is not None:
                 break
-            except Exception as e:
-                last_err = e
-                # Retry the chain on availability/quota errors; bail on others
-                err_str = str(e)
-                if any(code in err_str for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
-                    print(f"WARN: {model_name} unavailable ({type(e).__name__}); trying next in chain")
-                    continue
-                # Non-retryable: re-raise
-                raise
 
-        if response is None:
+        if analysis is None:
+            # All models failed. Give the user a concrete, actionable message.
+            if json_parse_fail_detail:
+                print(f"ERROR: every model returned unparseable JSON. Last: {json_parse_fail_detail}")
+                return jsonify({'error': 'The AI returned a malformed response (often a truncation issue on very long contracts). Please try again, or split the contract into smaller sections.'}), 502
             print(f"ERROR: all Gemini models exhausted. Last error: {last_err}")
-            return jsonify({'error': 'Gemini is temporarily overloaded across all models. Try again in a few minutes.'}), 503
-
-        # Parse Gemini's response (response_mime_type=application/json returns clean JSON)
-        response_text = response.text or ""
-
-        # Belt-and-suspenders: extract JSON if the model added prose
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
-        if json_start != -1 and json_end > json_start:
-            response_text = response_text[json_start:json_end]
-
-        analysis = json.loads(response_text)
+            return jsonify({'error': 'The AI is temporarily overloaded. Please try again in 1-2 minutes.'}), 503
 
         # STEP 6: Persist the analysis (contract text + paragraphs + AI output + metadata)
         duration = round(time.time() - analysis_start, 2)
