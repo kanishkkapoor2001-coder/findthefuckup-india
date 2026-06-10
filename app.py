@@ -572,23 +572,126 @@ def get_gallery():
         return jsonify({'error': 'Failed to load gallery'}), 500
 
 
+# ---------------------------------------------------------------------------
+# Shared chrome for /gallery and /issue/<id>. Mirrors the design tokens in
+# static/index.html so the Hall of Shame matches the rest of the tool.
+# ---------------------------------------------------------------------------
+HOS_HEAD_CSS = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+    --canvas: #0A0A0A; --surface: #111111; --elevated: #161616;
+    --ink: #FAFAF7;
+    --ink-85: rgba(250,250,247,0.85); --ink-70: rgba(250,250,247,0.70);
+    --ink-55: rgba(250,250,247,0.55); --ink-40: rgba(250,250,247,0.40);
+    --ink-25: rgba(250,250,247,0.25); --ink-12: rgba(250,250,247,0.12);
+    --ink-08: rgba(250,250,247,0.08);
+    --high: #f87171; --medium: #fbbf24; --low: #86efac;
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    background: var(--canvas); color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    min-height: 100vh;
+}
+a { color: inherit; }
+.italic, .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.page { max-width: 960px; margin: 0 auto; padding: 28px 32px 80px; }
+.nav { display: flex; align-items: center; justify-content: space-between; padding-bottom: 40px; }
+.brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.brand-mark { color: var(--ink-70); }
+.brand-name { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; letter-spacing: -0.022em; }
+.nav-meta { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; color: var(--ink-55); display: inline-flex; align-items: center; gap: 8px; }
+.nav-link { color: var(--ink-70); text-decoration: none; border-bottom: 1px solid var(--ink-25); padding-bottom: 1px; transition: 0.15s; }
+.nav-link:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.nav-sep { color: var(--ink-25); }
+.eyebrow { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; color: var(--ink-55); margin-bottom: 14px; }
+h1.page-title { font-family: "Instrument Serif", Georgia, serif; font-size: 48px; letter-spacing: -0.025em; line-height: 1.05; margin-bottom: 18px; font-weight: 400; }
+h1.page-title em { font-style: italic; color: var(--ink-70); }
+.lede { font-size: 17px; color: var(--ink-70); line-height: 1.55; max-width: 560px; margin-bottom: 36px; }
+.cta-row { display: flex; gap: 18px; align-items: center; margin-bottom: 48px; flex-wrap: wrap; }
+.cta { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--canvas); padding: 12px 22px; text-decoration: none; font-size: 14px; font-weight: 500; border-radius: 3px; transition: 0.15s; }
+.cta:hover { background: var(--ink-85); }
+.cta-secondary { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-70); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 14px; text-decoration: none; border-bottom: 1px solid var(--ink-25); padding-bottom: 1px; transition: 0.15s; }
+.cta-secondary:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.stats { color: var(--ink-55); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 14px; margin-bottom: 28px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+.card { background: var(--surface); border: 1px solid var(--ink-08); border-radius: 4px; padding: 22px 22px 18px; cursor: pointer; transition: 0.15s; display: flex; flex-direction: column; gap: 12px; }
+.card:hover { border-color: var(--ink-25); transform: translateY(-1px); }
+.card-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.sev { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-70); text-transform: lowercase; font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot.high { background: var(--high); } .dot.medium { background: var(--medium); } .dot.low { background: var(--low); }
+.where { color: var(--ink-40); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; }
+.card-text { color: var(--ink-85); font-size: 15px; line-height: 1.55; }
+.card-fix { color: var(--ink-55); font-size: 13.5px; line-height: 1.55; padding-top: 4px; border-top: 1px solid var(--ink-08); }
+.card-fix-label { color: var(--ink-40); font-family: "Instrument Serif", Georgia, serif; font-style: italic; margin-right: 6px; }
+.card-date { color: var(--ink-40); font-size: 12px; margin-top: auto; }
+.loading, .empty { padding: 80px 20px; text-align: center; color: var(--ink-55); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 16px; }
+.pagination { display: flex; justify-content: center; gap: 6px; margin-top: 56px; flex-wrap: wrap; }
+.pagination button { padding: 8px 14px; background: transparent; color: var(--ink-70); border: 1px solid var(--ink-12); border-radius: 3px; cursor: pointer; font-size: 13px; transition: 0.15s; font-family: inherit; }
+.pagination button:hover:not(:disabled) { border-color: var(--ink-40); color: var(--ink); }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination button.active { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
+.detail-panel { background: var(--surface); border: 1px solid var(--ink-08); border-radius: 4px; padding: 40px 44px; }
+.detail-meta { color: var(--ink-55); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 14px; margin-bottom: 26px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.detail-section { margin-bottom: 28px; }
+.detail-label { color: var(--ink-40); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; margin-bottom: 10px; }
+.detail-body { color: var(--ink); font-size: 17px; line-height: 1.6; }
+.detail-body.fix { color: var(--ink-85); font-size: 15.5px; }
+footer { margin-top: 60px; padding: 22px 0 0; border-top: 1px solid var(--ink-08); color: var(--ink-40); font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 13px; display: flex; justify-content: space-between; }
+footer a { color: var(--ink-70); text-decoration: none; border-bottom: 1px solid var(--ink-25); padding-bottom: 1px; }
+footer a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+@media (max-width: 600px) {
+    .page { padding: 20px 18px 60px; }
+    h1.page-title { font-size: 36px; }
+    .detail-panel { padding: 28px 24px; }
+    .nav-meta { font-size: 12px; }
+}
+</style>
+"""
+
+HOS_NAV = """
+<header class="nav">
+    <a class="brand" href="/">
+        <svg class="brand-mark" width="32" height="12" viewBox="0 0 36 14" fill="none" aria-hidden>
+            <path d="M 2 11 C 7 1, 13 12, 18 7 C 23 2, 29 5, 34 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        </svg>
+        <span class="brand-name">Find the Flaw · India</span>
+    </a>
+    <span class="nav-meta">
+        <a href="/gallery" class="nav-link">Hall of Shame</a>
+        <span class="nav-sep">·</span>
+        By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer" class="nav-link">Sigil</a>
+    </span>
+</header>
+"""
+
+HOS_FOOTER = """
+<footer>
+    <span>© 2026 Sigil · Not legal advice.</span>
+    <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">sigil91.com</a>
+</footer>
+"""
+
+
 @app.route('/issue/<share_id>')
 def view_shared_issue(share_id):
-    """View a single shared issue"""
+    """View a single shared issue — dark editorial palette matching the main app."""
     if not DATABASE_URL:
         return "Sharing feature not available", 503
 
     try:
         conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
-
         cur.execute(
             """SELECT paragraph_index, issue, suggestion, severity, created_at
-               FROM shared_issues
-               WHERE share_id = %s""",
+               FROM shared_issues WHERE share_id = %s""",
             (share_id,)
         )
-
         row = cur.fetchone()
         cur.close()
         conn.close()
@@ -596,471 +699,197 @@ def view_shared_issue(share_id):
         if not row:
             return "Issue not found", 404
 
-        # Simple HTML page to display the issue
-        html = f"""
-<!DOCTYPE html>
+        issue_text = escape(row[1])
+        suggestion_text = escape(row[2] or "")
+        severity = row[3] or 'medium'
+        para_idx = row[0]
+        shared_on = row[4].strftime('%-d %B %Y')
+        og_desc = escape(row[1][:200])
+
+        return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta property="og:title" content="Contract Error Found">
-    <meta property="og:description" content="{escape(row[1][:150])}...">
+    <meta property="og:title" content="A flaw, found · Find the Flaw">
+    <meta property="og:description" content="{og_desc}">
     <meta name="twitter:card" content="summary_large_image">
-    <title>Contract Error - AI Contract Checker</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: linear-gradient(135deg, #0f1f3d 0%, #1a2f52 100%);
-            color: white;
-            padding: 40px 20px;
-            min-height: 100vh;
-        }}
-        .container {{
-            max-width: 800px;
-            margin: 0 auto;
-            background: #1a3a5c;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }}
-        h1 {{
-            font-size: 32px;
-            margin-bottom: 10px;
-            color: #93b5d8;
-        }}
-        .meta {{
-            color: #9ca3af;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }}
-        .severity {{
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-        }}
-        .severity.high {{ background: #dc2626; }}
-        .severity.medium {{ background: #f59e0b; }}
-        .severity.low {{ background: #10b981; }}
-        .section {{
-            margin-bottom: 30px;
-        }}
-        .label {{
-            color: #93b5d8;
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 14px;
-            text-transform: uppercase;
-        }}
-        .content {{
-            background: rgba(0,0,0,0.2);
-            padding: 16px;
-            border-radius: 6px;
-            line-height: 1.6;
-        }}
-        .cta {{
-            text-align: center;
-            margin-top: 40px;
-        }}
-        .button {{
-            display: inline-block;
-            background: #93b5d8;
-            color: #0f1f3d;
-            padding: 14px 32px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.2s;
-        }}
-        .button:hover {{
-            background: #a8c5e0;
-            transform: translateY(-2px);
-        }}
-    </style>
+    <title>A flaw, found · Find the Flaw · India</title>
+    {HOS_HEAD_CSS}
 </head>
 <body>
-    <div class="container">
-        <h1>Contract Error Found</h1>
-        <div class="meta">
-            Paragraph {row[0]} • Shared on {row[4].strftime('%B %d, %Y')}
+    <div class="page">
+        {HOS_NAV}
+        <div class="eyebrow">Hall of Shame</div>
+        <h1 class="page-title">A flaw, <em>found</em>.</h1>
+
+        <div class="detail-panel">
+            <div class="detail-meta">
+                <span class="sev"><span class="dot {severity}"></span>{severity}</span>
+                <span class="nav-sep">·</span>
+                <span>paragraph {para_idx}</span>
+                <span class="nav-sep">·</span>
+                <span>shared on {shared_on}</span>
+            </div>
+            <div class="detail-section">
+                <div class="detail-label">The flaw</div>
+                <div class="detail-body">{issue_text}</div>
+            </div>
+            <div class="detail-section">
+                <div class="detail-label">Suggested fix</div>
+                <div class="detail-body fix">{suggestion_text}</div>
+            </div>
         </div>
-        
-        <div class="severity {row[3]}">{row[3]} severity</div>
-        
-        <div class="section">
-            <div class="label">Issue</div>
-            <div class="content">{escape(row[1])}</div>
+
+        <div class="cta-row" style="margin-top: 36px;">
+            <a class="cta" href="/">Check your contract →</a>
+            <a class="cta-secondary" href="/gallery">See the full Hall of Shame</a>
         </div>
-        
-        <div class="section">
-            <div class="label">💡 Suggested Fix</div>
-            <div class="content">{escape(row[2])}</div>
-        </div>
-        
-        <div class="cta">
-            <a href="/" class="button">Check Your Contracts</a>
-        </div>
+
+        {HOS_FOOTER}
     </div>
 </body>
-</html>
-"""
-        return html
+</html>"""
 
     except Exception as e:
-        print(f"Error viewing shared issue: {str(e)}")
+        print(f"Error viewing shared issue: {{str(e)}}")
         return "Error loading issue", 500
 
 
 @app.route('/gallery')
 def gallery():
-    """Public gallery of shared issues"""
-    html = """
-<!DOCTYPE html>
+    """Public gallery of shared issues — dark editorial palette matching the main app."""
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gallery - AI Contract Checker</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: linear-gradient(135deg, #0f1f3d 0%, #1a2f52 100%);
-            color: white;
-            padding: 40px 20px;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
-        .logo {
-            font-size: 48px;
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .tagline {
-            color: #93b5d8;
-            font-size: 18px;
-            margin-bottom: 20px;
-        }
-
-        .cta-link {
-            display: inline-block;
-            background: #93b5d8;
-            color: #0f1f3d;
-            padding: 12px 24px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            margin-top: 10px;
-            transition: all 0.2s;
-        }
-
-        .cta-link:hover {
-            background: #a8c5e0;
-        }
-
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .issue-card {
-            background: #1a3a5c;
-            border-radius: 8px;
-            padding: 24px;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-left: 4px solid #93b5d8;
-        }
-
-        .issue-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-
-        .issue-card.high {
-            border-left-color: #dc2626;
-        }
-
-        .issue-card.medium {
-            border-left-color: #f59e0b;
-        }
-
-        .issue-card.low {
-            border-left-color: #10b981;
-        }
-
-        .issue-location {
-            color: #93b5d8;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .issue-description {
-            color: white;
-            font-size: 16px;
-            margin-bottom: 12px;
-            line-height: 1.5;
-        }
-
-        .issue-suggestion {
-            color: #d1d5db;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 12px;
-        }
-
-        .issue-date {
-            color: #9ca3af;
-            font-size: 12px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            font-size: 18px;
-            color: #93b5d8;
-        }
-
-        .error-message {
-            background: #dc2626;
-            color: white;
-            padding: 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 40px;
-            flex-wrap: wrap;
-        }
-
-        .pagination button {
-            padding: 10px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .pagination button:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .pagination button.active {
-            background: #93b5d8;
-            color: #0f1f3d;
-            border-color: #93b5d8;
-        }
-
-        .stats {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #93b5d8;
-            font-size: 16px;
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 60px;
-            padding: 20px;
-            font-size: 14px;
-            color: #9ca3af;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        @media (max-width: 768px) {
-            .gallery-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .logo {
-                font-size: 36px;
-            }
-        }
-    </style>
+    <title>Hall of Shame · Find the Flaw · India</title>
+    {HOS_HEAD_CSS}
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">Contract Error Gallery</div>
-            <div class="tagline">
-                Hall of Shame: Real Contract Errors Found
-            </div>
-            <a href="/" class="cta-link">Check Your Contract</a>
+    <div class="page">
+        {HOS_NAV}
+        <div class="eyebrow">A public ledger</div>
+        <h1 class="page-title">Hall of <em>Shame</em>.</h1>
+        <p class="lede">
+            Real flaws, found in real contracts. Every entry was sent here by someone
+            who ran a contract through the tool and thought the world should see it.
+        </p>
+
+        <div class="cta-row">
+            <a class="cta" href="/">Check your contract →</a>
+            <a class="cta-secondary" href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Want an advocate to sign off?</a>
         </div>
 
         <div id="stats" class="stats"></div>
-
+        <div id="loading" class="loading">Loading the wall…</div>
         <div id="error-container"></div>
-
-        <div id="loading" class="loading">Loading issues...</div>
-
-        <div id="gallery" class="gallery-grid"></div>
-
+        <div id="gallery" class="grid"></div>
         <div id="pagination" class="pagination"></div>
 
-        <div class="footer">
-            © 2026 - All Rights Reserved | This tool is not legal advice.
-        </div>
+        {HOS_FOOTER}
     </div>
 
     <script>
-        let currentPage = 1;
         const perPage = 20;
 
-        async function loadGallery(page = 1) {
-            try {
+        async function loadGallery(page = 1) {{
+            try {{
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('gallery').innerHTML = '';
                 document.getElementById('error-container').innerHTML = '';
 
-                const response = await fetch(`/api/gallery?page=${page}&per_page=${perPage}`);
+                const response = await fetch('/api/gallery?page=' + page + '&per_page=' + perPage);
                 const data = await response.json();
-
                 document.getElementById('loading').style.display = 'none';
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load gallery');
-                }
+                if (!data.success) throw new Error(data.error || 'Failed to load gallery');
 
-                if (data.issues.length === 0) {
-                    document.getElementById('gallery').innerHTML = '<div class="loading">No issues shared yet. Be the first!</div>';
+                if (data.issues.length === 0) {{
+                    document.getElementById('gallery').innerHTML =
+                        '<div class="empty">Nothing here yet — be the first to send something to the wall.</div>';
                     return;
-                }
+                }}
 
-                // Update stats
-                document.getElementById('stats').innerHTML = `
-                    Showing ${data.issues.length} of ${data.total} shared contract errors
-                `;
+                document.getElementById('stats').innerHTML =
+                    data.total + ' flaw' + (data.total === 1 ? '' : 's') + ' on the wall · showing ' + data.issues.length;
 
-                // Render issues
                 const gallery = document.getElementById('gallery');
-                data.issues.forEach(issue => {
+                data.issues.forEach(issue => {{
                     const card = document.createElement('div');
-                    card.className = `issue-card ${issue.severity}`;
+                    card.className = 'card';
                     card.onclick = () => window.open(issue.shareUrl, '_blank');
 
                     const date = new Date(issue.createdAt);
-                    const dateStr = date.toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric', 
-                        year: 'numeric' 
-                    });
+                    const dateStr = date.toLocaleDateString('en-IN', {{
+                        month: 'short', day: 'numeric', year: 'numeric'
+                    }});
 
-                    card.innerHTML = `
-                        <div class="issue-location">📍 Paragraph ${issue.paragraphIndex}</div>
-                        <div class="issue-description">
-                            <strong>Issue:</strong> ${escapeHtml(issue.issue)}
-                        </div>
-                        <div class="issue-suggestion">
-                            💡 ${escapeHtml(issue.suggestion)}
-                        </div>
-                        <div class="issue-date">Shared on ${dateStr}</div>
-                    `;
-
+                    card.innerHTML =
+                        '<div class="card-meta">' +
+                            '<span class="sev"><span class="dot ' + issue.severity + '"></span>' + issue.severity + '</span>' +
+                            '<span class="nav-sep">·</span>' +
+                            '<span class="where">paragraph ' + issue.paragraphIndex + '</span>' +
+                        '</div>' +
+                        '<div class="card-text">' + escapeHtml(issue.issue) + '</div>' +
+                        (issue.suggestion ? '<div class="card-fix"><span class="card-fix-label">Fix —</span>' + escapeHtml(issue.suggestion) + '</div>' : '') +
+                        '<div class="card-date">shared ' + dateStr + '</div>';
                     gallery.appendChild(card);
-                });
+                }});
 
-                // Render pagination
                 renderPagination(data.page, data.totalPages);
-
-            } catch (error) {
+            }} catch (error) {{
                 console.error('Error loading gallery:', error);
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error-container').innerHTML = `
-                    <div class="error-message">
-                        ⚠️ Failed to load gallery. Please try again later.
-                    </div>
-                `;
-            }
-        }
+                document.getElementById('error-container').innerHTML =
+                    '<div class="empty">Could not load the wall — try again in a minute.</div>';
+            }}
+        }}
 
-        function renderPagination(currentPage, totalPages) {
+        function renderPagination(currentPage, totalPages) {{
             const pagination = document.getElementById('pagination');
             pagination.innerHTML = '';
-
             if (totalPages <= 1) return;
 
-            // Previous button
             const prevBtn = document.createElement('button');
             prevBtn.textContent = '← Previous';
             prevBtn.disabled = currentPage === 1;
             prevBtn.onclick = () => loadGallery(currentPage - 1);
             pagination.appendChild(prevBtn);
 
-            // Page numbers (show max 5)
             const maxVisible = 5;
             let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
             let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-
-            if (endPage - startPage < maxVisible - 1) {
+            if (endPage - startPage < maxVisible - 1) {{
                 startPage = Math.max(1, endPage - maxVisible + 1);
-            }
+            }}
 
-            for (let i = startPage; i <= endPage; i++) {
+            for (let i = startPage; i <= endPage; i++) {{
                 const pageBtn = document.createElement('button');
                 pageBtn.textContent = i;
                 pageBtn.className = i === currentPage ? 'active' : '';
                 pageBtn.onclick = () => loadGallery(i);
                 pagination.appendChild(pageBtn);
-            }
+            }}
 
-            // Next button
             const nextBtn = document.createElement('button');
             nextBtn.textContent = 'Next →';
             nextBtn.disabled = currentPage === totalPages;
             nextBtn.onclick = () => loadGallery(currentPage + 1);
             pagination.appendChild(nextBtn);
-        }
+        }}
 
-        function escapeHtml(text) {
+        function escapeHtml(text) {{
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }
+        }}
 
-        // Load initial page
         loadGallery(1);
     </script>
 </body>
-</html>
-    """
-    return html
+</html>"""
 
 
 @app.route('/api/stats', methods=['GET'])
