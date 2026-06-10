@@ -120,3 +120,5 @@ test_uploads/
 uploads/
 .env
 test_docs/
+.vercel
+.env*

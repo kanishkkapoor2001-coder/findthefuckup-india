@@ -88,7 +88,36 @@
             font-style: italic;
             font-size: 13px;
             color: var(--ink-55);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
+        .nav-link {
+            color: var(--ink-70);
+            text-decoration: none;
+            border-bottom: 1px solid var(--ink-25);
+            padding-bottom: 1px;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .nav-link:hover { color: var(--ink); border-bottom-color: var(--ink); }
+        .nav-sep { color: var(--ink-25); }
+
+        .issue-share {
+            margin-top: 10px;
+            background: none;
+            border: 1px solid var(--ink-12);
+            color: var(--ink-55);
+            padding: 5px 10px;
+            font-family: "Instrument Serif", Georgia, serif;
+            font-style: italic;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.15s;
+        }
+        .issue-share:hover { color: var(--ink); border-color: var(--ink-40); }
+        .issue-share.shared { color: var(--low); border-color: var(--low); cursor: default; }
+        .issue-share:disabled { opacity: 0.6; cursor: wait; }
 
         main {
             flex: 1;
@@ -600,6 +629,7 @@
             const [loading, setLoading] = React.useState(false);
             const [results, setResults] = React.useState(null);
             const [dragOver, setDragOver] = React.useState(false);
+            const [shared, setShared] = React.useState({}); // issueIndex -> 'sharing' | 'done'
             const [globalDrag, setGlobalDrag] = React.useState(false);
             const fileInputRef = React.useRef(null);
 
@@ -668,6 +698,30 @@
                 setResults(null);
             };
 
+            const shareIssue = async (iss, i) => {
+                if (shared[i]) return;
+                setShared(s => ({ ...s, [i]: 'sharing' }));
+                try {
+                    const res = await fetch('/api/share-issue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            paragraphIndex: iss.paragraphIndex ?? 0,
+                            issue: iss.issue,
+                            suggestion: iss.suggestion || '',
+                            severity: iss.severity || 'medium',
+                        }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.shareUrl) throw new Error(data.error || 'Share failed');
+                    try { await navigator.clipboard.writeText(data.shareUrl); } catch (_) {}
+                    setShared(s => ({ ...s, [i]: 'done' }));
+                } catch (err) {
+                    setShared(s => { const n = { ...s }; delete n[i]; return n; });
+                    alert('Could not share: ' + (err.message || 'unknown'));
+                }
+            };
+
             const scrollToParagraph = (idx) => {
                 const el = document.getElementById(`para-${idx}`);
                 if (!el) return;
@@ -702,7 +756,11 @@
                                 <SigilMark />
                                 <span className="brand-name">Find the Flaw · India</span>
                             </a>
-                            <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
+                            <span className="nav-meta">
+                                <a href="/gallery" className="nav-link">Hall of Shame</a>
+                                <span className="nav-sep">·</span>
+                                By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a>
+                            </span>
                         </header>
 
                         <main>
@@ -755,6 +813,13 @@
                                                         {iss.suggestion}
                                                     </div>
                                                 )}
+                                                <button
+                                                    className={`issue-share ${shared[i] === 'done' ? 'shared' : ''}`}
+                                                    onClick={() => shareIssue(iss, i)}
+                                                    disabled={shared[i] === 'sharing'}
+                                                >
+                                                    {shared[i] === 'done' ? '✓ link copied — added to Hall of Shame' : shared[i] === 'sharing' ? 'sharing…' : 'Send to Hall of Shame →'}
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -825,7 +890,11 @@
                             <SigilMark />
                             <span className="brand-name">Find the Flaw · India</span>
                         </a>
-                        <span className="nav-meta">By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a></span>
+                        <span className="nav-meta">
+                            <a href="/gallery" className="nav-link">Hall of Shame</a>
+                            <span className="nav-sep">·</span>
+                            By <a href="https://sigil91.com" target="_blank" rel="noopener noreferrer">Sigil</a>
+                        </span>
                     </header>
 
                     <main>
