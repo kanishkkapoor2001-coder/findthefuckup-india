@@ -276,8 +276,10 @@ def check_document():
         if not paragraphs or len(paragraphs) == 0:
             return jsonify({'error': 'Document appears to be empty'}), 400
 
-        # Combine all paragraphs for analysis
-        full_text = '\n\n'.join([p['text'] for p in paragraphs])
+        # Combine all paragraphs for analysis. Tag each with its real paragraph number
+        # ([¶N], the same index the UI renders) so the model references paragraphs by the
+        # exact index used downstream instead of inventing its own 0,1,2… counting.
+        full_text = '\n\n'.join([f"[¶{p['index']}] {p['text']}" for p in paragraphs])
 
         # STEP 5: Call Gemini API for analysis
         import time
@@ -291,13 +293,16 @@ def check_document():
         seen = set()
         model_chain = [m for m in model_chain if not (m in seen or seen.add(m))]
 
-        # Create detailed prompt for Claude — India-specific
+        # Create detailed prompt for Gemini — India-specific
         prompt = f"""You are a meticulous Indian commercial-contracts reviewer with deep familiarity with Indian law and Indian SaaS commercial practice.
 
 Analyse the following contract for potential errors, inconsistencies, and problems — both general drafting issues and Indian-jurisdiction-specific issues.
 
 For each issue you find, provide:
-1. The paragraph number where the issue occurs
+1. The paragraph number where the issue occurs. Every paragraph in the contract below is
+   prefixed with its number in the form [¶N]. Use that exact integer N as paragraphIndex —
+   do NOT invent your own numbering and do NOT use clause labels like "GCC 5.7.7" or
+   "General". If an issue is document-wide, use the [¶N] of the single most relevant paragraph.
 2. A clear description of the issue (one to two sentences)
 3. A suggested fix or improvement (concrete language where possible)
 4. Severity level (high, medium, or low) — calibration rules:
@@ -347,7 +352,7 @@ ALSO LOOK FOR:
 - Currency-conversion clauses that ignore RBI reference rates
 - Indemnity payable in foreign currency by an Indian entity (FEMA implications)
 
-Contract text:
+Contract text (each paragraph is prefixed with its number as [¶N] — reference these exact numbers):
 
 {full_text}
 
@@ -419,6 +424,25 @@ Respond in JSON format with this structure:
                 return jsonify({'error': 'The AI returned a malformed response (often a truncation issue on very long contracts). Please try again, or split the contract into smaller sections.'}), 502
             print(f"ERROR: all Gemini models exhausted. Last error: {last_err}")
             return jsonify({'error': 'The AI is temporarily overloaded. Please try again in 1-2 minutes.'}), 503
+
+        # Normalise paragraphIndex before it goes any further. The model is asked for an
+        # integer matching the [¶N] tags, but on some documents it returns a clause label
+        # ("GCC 5.7.7", "General") or a stray number. A non-int would (a) hide the jump link
+        # in the UI and (b) blow up the INTEGER paragraph_index column when shared. Coerce to
+        # a valid known index, else None — the UI falls back gracefully and sharing sends 0.
+        valid_indices = {p['index'] for p in paragraphs}
+        for iss in analysis.get('issues', []) or []:
+            raw = iss.get('paragraphIndex')
+            norm = None
+            if isinstance(raw, bool):
+                norm = None  # bool is a subclass of int — guard against True/False
+            elif isinstance(raw, int):
+                norm = raw
+            elif isinstance(raw, float):
+                norm = int(raw)
+            elif isinstance(raw, str) and raw.strip().isdigit():
+                norm = int(raw.strip())
+            iss['paragraphIndex'] = norm if norm in valid_indices else None
 
         # STEP 6: Persist the analysis (contract text + paragraphs + AI output + metadata)
         duration = round(time.time() - analysis_start, 2)
